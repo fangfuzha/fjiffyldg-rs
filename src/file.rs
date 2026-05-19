@@ -1,10 +1,10 @@
 use crate::encoding::{detect_encoding, TextEncoding};
 use crate::error::{FjiffyldgError, Result, UtfMode};
 use crate::line_index::LineIndex;
-use memmap2::Mmap;
+use memmap2::{Mmap, MmapMut};
 use parking_lot::{Condvar, Mutex, RwLock};
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{BufWriter, Read, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -17,6 +17,8 @@ const USUALLY_IO_SIZE_MAX: u64 = 10 * MB as u64;
 const BUFFER_SIZE: usize = 128 * KB;
 /// 超长行临界值：4KB
 const CRITICAL_LONGLINE_LEN: usize = 4 * KB;
+/// 大文件写入时使用的缓冲区大小：8MB
+const LARGE_WRITE_BUFFER_SIZE: usize = 8 * MB;
 /// 大文件映射分块大小：1GB
 #[allow(dead_code)]
 const MMAP_CHUNK_SIZE: u64 = 1024 * MB as u64;
@@ -761,6 +763,76 @@ mod tests {
         assert_eq!(slice.len(), data.len() - 3);
         assert_eq!(slice.as_ptr(), unsafe { expected_ptr.add(3) });
     }
+
+    #[test]
+    fn test_append_file_creates_missing_target() {
+        let path = std::env::temp_dir().join("fjiffyldg-rs-append-create.txt");
+        let _ = std::fs::remove_file(&path);
+
+        append_file(&path, b"hello").unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"hello");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_save_file_large_buffer_round_trips() {
+        let path = std::env::temp_dir().join("fjiffyldg-rs-save-large.bin");
+        let _ = std::fs::remove_file(&path);
+        let data = vec![b'a'; (USUALLY_IO_SIZE_MAX as usize) + 1];
+
+        save_file(&path, &data).unwrap();
+
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), data.len() as u64);
+        let stored = std::fs::read(&path).unwrap();
+        assert_eq!(stored.len(), data.len());
+        assert_eq!(stored[0], b'a');
+        assert_eq!(stored[stored.len() - 1], b'a');
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_clone_file_large_input_round_trips() {
+        let src = std::env::temp_dir().join("fjiffyldg-rs-clone-large-src.bin");
+        let dst = std::env::temp_dir().join("fjiffyldg-rs-clone-large-dst.bin");
+        let _ = std::fs::remove_file(&src);
+        let _ = std::fs::remove_file(&dst);
+        let data = vec![b'b'; (USUALLY_IO_SIZE_MAX as usize) + 1];
+
+        save_file(&src, &data).unwrap();
+        clone_file(&src, &dst).unwrap();
+
+        assert_eq!(std::fs::metadata(&dst).unwrap().len(), data.len() as u64);
+        let stored = std::fs::read(&dst).unwrap();
+        assert_eq!(stored.len(), data.len());
+        assert_eq!(stored[0], b'b');
+        assert_eq!(stored[stored.len() - 1], b'b');
+        let _ = std::fs::remove_file(&src);
+        let _ = std::fs::remove_file(&dst);
+    }
+
+    #[test]
+    fn test_concatenate_files_large_input_appends_to_output() {
+        let output = std::env::temp_dir().join("fjiffyldg-rs-concat-out.bin");
+        let append = std::env::temp_dir().join("fjiffyldg-rs-concat-append.bin");
+        let _ = std::fs::remove_file(&output);
+        let _ = std::fs::remove_file(&append);
+        let prefix = b"prefix";
+        let suffix = vec![b'c'; (USUALLY_IO_SIZE_MAX as usize) + 1];
+
+        save_file(&output, prefix).unwrap();
+        save_file(&append, &suffix).unwrap();
+        concatenate_files([append.as_path()], output.as_path()).unwrap();
+
+        let meta = std::fs::metadata(&output).unwrap();
+        assert_eq!(meta.len(), (prefix.len() + suffix.len()) as u64);
+        let stored = std::fs::read(&output).unwrap();
+        assert_eq!(&stored[..prefix.len()], prefix);
+        assert_eq!(stored[prefix.len()], b'c');
+        assert_eq!(stored[stored.len() - 1], b'c');
+        let _ = std::fs::remove_file(&output);
+        let _ = std::fs::remove_file(&append);
+    }
 }
 
 /// 获取文件大小（字节）
@@ -770,35 +842,92 @@ pub fn get_file_size<P: AsRef<Path>>(path: P) -> Result<u64> {
         .map_err(|_| FjiffyldgError::FileInaccessible)
 }
 
-/// 克隆文件
-pub fn clone_file<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<()> {
-    std::fs::copy(src, dst)
-        .map(|_| ())
-        .map_err(|_| FjiffyldgError::StreamError)
-}
-
-/// 保存内容到文件
-pub fn save_file<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
-    let mut file = OpenOptions::new()
+/// 使用可写内存映射将大块数据保存到文件。
+fn save_large_file(path: &Path, data: &[u8]) -> Result<()> {
+    let file = OpenOptions::new()
+        .read(true)
         .write(true)
         .create(true)
         .truncate(true)
         .open(path)
         .map_err(|_| FjiffyldgError::FileInaccessible)?;
 
-    file.write_all(data)
+    file.set_len(data.len() as u64)
+        .map_err(|_| FjiffyldgError::StreamError)?;
+
+    let mut mmap = unsafe { MmapMut::map_mut(&file) }.map_err(|_| FjiffyldgError::MmapError)?;
+    mmap.copy_from_slice(data);
+    mmap.flush().map_err(|_| FjiffyldgError::StreamError)
+}
+
+/// 以较大的顺序写缓冲追加数据，适合大文件追加与拼接。
+fn append_large_data(path: &Path, data: &[u8]) -> Result<()> {
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .map_err(|_| FjiffyldgError::FileInaccessible)?;
+    let mut writer = BufWriter::with_capacity(LARGE_WRITE_BUFFER_SIZE, file);
+    writer
+        .write_all(data)
+        .and_then(|_| writer.flush())
         .map_err(|_| FjiffyldgError::StreamError)
+}
+
+/// 克隆文件
+pub fn clone_file<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<()> {
+    let src = src.as_ref();
+    let dst = dst.as_ref();
+    let file_size = get_file_size(src)?;
+
+    if file_size > USUALLY_IO_SIZE_MAX {
+        let file = File::open(src).map_err(|_| FjiffyldgError::FileInaccessible)?;
+        let mmap = unsafe { Mmap::map(&file) }.map_err(|_| FjiffyldgError::MmapError)?;
+        save_file(dst, &mmap)?;
+    } else {
+        std::fs::copy(src, dst)
+            .map(|_| ())
+            .map_err(|_| FjiffyldgError::StreamError)?;
+    }
+
+    Ok(())
+}
+
+/// 保存内容到文件
+pub fn save_file<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
+    let path = path.as_ref();
+
+    if data.len() as u64 > USUALLY_IO_SIZE_MAX {
+        save_large_file(path, data)
+    } else {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .map_err(|_| FjiffyldgError::FileInaccessible)?;
+
+        file.write_all(data)
+            .map_err(|_| FjiffyldgError::StreamError)
+    }
 }
 
 /// 追加内容到文件
 pub fn append_file<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
-    let mut file = OpenOptions::new()
-        .append(true)
-        .open(path)
-        .map_err(|_| FjiffyldgError::FileInaccessible)?;
+    let path = path.as_ref();
 
-    file.write_all(data)
-        .map_err(|_| FjiffyldgError::StreamError)
+    if data.len() as u64 > USUALLY_IO_SIZE_MAX {
+        append_large_data(path, data)
+    } else {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|_| FjiffyldgError::FileInaccessible)?;
+
+        file.write_all(data)
+            .map_err(|_| FjiffyldgError::StreamError)
+    }
 }
 
 /// 合并多个文件
@@ -806,17 +935,31 @@ pub fn concatenate_files<P: AsRef<Path>, I: IntoIterator<Item = P>>(
     files: I,
     output: P,
 ) -> Result<()> {
+    let output = output.as_ref();
     let mut output_file = OpenOptions::new()
-        .write(true)
         .create(true)
-        .truncate(true)
+        .append(true)
         .open(output)
         .map_err(|_| FjiffyldgError::FileInaccessible)?;
-
     for file_path in files {
-        let mut input_file = File::open(file_path).map_err(|_| FjiffyldgError::FileInaccessible)?;
-        std::io::copy(&mut input_file, &mut output_file)
-            .map_err(|_| FjiffyldgError::StreamError)?;
+        let file_path = file_path.as_ref();
+        let file_size = get_file_size(file_path)?;
+
+        if file_size > USUALLY_IO_SIZE_MAX {
+            drop(output_file);
+            let input_file = File::open(file_path).map_err(|_| FjiffyldgError::FileInaccessible)?;
+            let mmap = unsafe { Mmap::map(&input_file) }.map_err(|_| FjiffyldgError::MmapError)?;
+            append_file(output, &mmap)?;
+            output_file = OpenOptions::new()
+                .append(true)
+                .open(output)
+                .map_err(|_| FjiffyldgError::FileInaccessible)?;
+        } else {
+            let mut input_file =
+                File::open(file_path).map_err(|_| FjiffyldgError::FileInaccessible)?;
+            std::io::copy(&mut input_file, &mut output_file)
+                .map_err(|_| FjiffyldgError::StreamError)?;
+        }
     }
 
     Ok(())
