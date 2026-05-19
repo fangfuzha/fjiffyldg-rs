@@ -53,7 +53,7 @@ fn main() -> fjiffyldg::Result<()> {
 
 ## C/C++ ABI
 
-The public C/C++ header is [include/fjiffyldg.h](include/fjiffyldg.h). It is generated from the Rust FFI source with `cbindgen` and provides C declarations, the `fjiffyldg_ptr` handle alias, export macros, and a lightweight C++ RAII wrapper. See [docs/c_api_usage_en.md](docs/c_api_usage_en.md) for the full usage guide.
+The public C/C++ header is [include/fjiffyldg.h](include/fjiffyldg.h). It is generated from the Rust FFI source with `cbindgen` and provides C declarations, the `fjiffyldg_ptr` handle alias, export macros, and a lightweight C++ RAII wrapper. The built-in check verifies that the header is current, C/C++ declarations compile, the release dynamic library links, and minimal smoke executables run. See [docs/c_api_usage_en.md](docs/c_api_usage_en.md) for the full usage guide.
 
 ```powershell
 cargo install cbindgen --locked
@@ -95,13 +95,13 @@ fjiffyldg-rs/
 
 ## Compared with the C++ Version
 
-| Feature | C++ version | Rust version |
-| ------- | ----------- | ------------ |
-| License | BSD 3-Clause | BSD-3-Clause OR MIT OR Apache-2.0 |
+| Feature               | C++ version   | Rust version                               |
+| --------------------- | ------------- | ------------------------------------------ |
+| License               | BSD 3-Clause  | BSD-3-Clause OR MIT OR Apache-2.0          |
 | Platform dependencies | U++ framework | Rust standard library + lightweight crates |
-| Memory management | Manual + RAII | Ownership + borrow checker |
-| Cross-platform | Yes | Yes |
-| Ecosystem | C++ | crates.io |
+| Memory management     | Manual + RAII | Ownership + borrow checker                 |
+| Cross-platform        | Yes           | Yes                                        |
+| Ecosystem             | C++           | crates.io                                  |
 
 ## Contributing
 

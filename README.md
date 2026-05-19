@@ -56,10 +56,10 @@ fn main() -> fjiffyldg::Result<()> {
 
 ## 📊 功能特性
 
-| 功能     | 说明                                            |
-| -------- | ----------------------------------------------- |
-| 文件加载 | 按需加载，支持内存映射                          |
-| 行索引   | 自动构建行偏移表，O(log n) 查找                 |
+| 功能      | 说明                                            |
+| --------- | ----------------------------------------------- |
+| 文件加载  | 按需加载，支持内存映射                          |
+| 行索引    | 自动构建行偏移表，O(log n) 查找                 |
 | 编码检测  | UTF-8/UTF-16 自动识别                           |
 | 文件操作  | 复制、保存、追加、连接                          |
 | C/C++ ABI | 提供 C/C++ 头文件与 smoke 编译检查              |
@@ -68,7 +68,7 @@ fn main() -> fjiffyldg::Result<()> {
 
 ## 🧩 C ABI
 
-公共 C/C++ 头文件位于 `include/fjiffyldg.h`，由 `cbindgen` 根据 Rust FFI 源码生成，提供 C 函数声明、`fjiffyldg_ptr` 句柄别名、导出宏和轻量 C++ RAII 包装。详细使用说明见 [docs/c_api_usage.md](docs/c_api_usage.md)。
+公共 C/C++ 头文件位于 `include/fjiffyldg.h`，由 `cbindgen` 根据 Rust FFI 源码生成，提供 C 函数声明、`fjiffyldg_ptr` 句柄别名、导出宏和轻量 C++ RAII 包装。内置检查会验证头文件未过期、C/C++ 声明可编译、release 动态库可链接并能运行最小 smoke。详细使用说明见 [docs/c_api_usage.md](docs/c_api_usage.md)。
 
 ```powershell
 cargo install cbindgen --locked

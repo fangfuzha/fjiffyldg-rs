@@ -50,11 +50,13 @@ C++ 调用方也可以直接包含同一个头文件：
 g++ -std=c++17 -I include app.cpp -L target/release -lfjiffyldg -o app
 ```
 
-仓库内置的头文件 smoke 检查会先验证头文件由 `cbindgen` 生成且未过期，再分别用 C 和 C++ 编译器编译 smoke 输入：
+仓库内置的 smoke 检查会先验证头文件由 `cbindgen` 生成且未过期，再分别用 C 和 C++ 编译器编译 smoke 输入；随后构建 release 动态库，链接 C/C++ smoke 可执行文件，并运行最小调用闭环：
 
 ```powershell
 pwsh -File scripts/check_c_abi.ps1
 ```
+
+该脚本覆盖加载、扫描、行查询、读取、huge mmap、编码工具和 C++ RAII wrapper 的基本可用性。Windows 上会把 `target/release` 临时加入 `PATH`，以便 smoke 可执行文件能加载 `fjiffyldg.dll`。
 
 ## 4. 句柄生命周期
 
@@ -114,16 +116,16 @@ int main(void) {
 
 常用查询：
 
-| 函数 | 作用 |
-| ---- | ---- |
-| `LoadAndScanFile` | 加载文件并启动后台行扫描 |
-| `LoadFileOnly` | 只加载文件，不启动行扫描 |
-| `WaitFileScanTaskFinished` | 等待后台扫描结束 |
-| `BackstageRequestStop` | 请求停止扫描并清空当前行索引 |
-| `GetFileLineCount` | 获取总行数 |
-| `GetFileLinePos` | 获取指定行起始字节偏移 |
-| `GetFileLineLength` | 获取指定行内容长度，不含换行符 |
-| `GetFileLineIndex` | 根据字节位置查找所在行 |
+| 函数                       | 作用                           |
+| -------------------------- | ------------------------------ |
+| `LoadAndScanFile`          | 加载文件并启动后台行扫描       |
+| `LoadFileOnly`             | 只加载文件，不启动行扫描       |
+| `WaitFileScanTaskFinished` | 等待后台扫描结束               |
+| `BackstageRequestStop`     | 请求停止扫描并清空当前行索引   |
+| `GetFileLineCount`         | 获取总行数                     |
+| `GetFileLinePos`           | 获取指定行起始字节偏移         |
+| `GetFileLineLength`        | 获取指定行内容长度，不含换行符 |
+| `GetFileLineIndex`         | 根据字节位置查找所在行         |
 
 ## 6. 读取数据
 
@@ -167,29 +169,29 @@ if (mapped != 0) {
 
 ## 8. 编码和文件工具函数
 
-| 函数 | 作用 |
-| ---- | ---- |
-| `CheckTextASCII` | 检查字节片段是否全为 ASCII |
-| `CheckWholeTextUtf8` | 检查完整字节片段是否为 UTF-8 |
-| `CheckExtractTextUtf8` | 抽样检查文本片段是否为 UTF-8 |
+| 函数                   | 作用                            |
+| ---------------------- | ------------------------------- |
+| `CheckTextASCII`       | 检查字节片段是否全为 ASCII      |
+| `CheckWholeTextUtf8`   | 检查完整字节片段是否为 UTF-8    |
+| `CheckExtractTextUtf8` | 抽样检查文本片段是否为 UTF-8    |
 | `GetUtf8TextCharCount` | 统计 UTF-8 字符数并推进输入指针 |
-| `GetFileSizeByteCount` | 查询文件大小 |
-| `ToCloneFile` | 复制文件 |
-| `ToSaveFile` | 保存缓冲区到文件 |
-| `ToAppendFile` | 追加缓冲区到文件 |
-| `ToConcatenateFile` | 将第二个文件追加到第一个文件 |
+| `GetFileSizeByteCount` | 查询文件大小                    |
+| `ToCloneFile`          | 复制文件                        |
+| `ToSaveFile`           | 保存缓冲区到文件                |
+| `ToAppendFile`         | 追加缓冲区到文件                |
+| `ToConcatenateFile`    | 将第二个文件追加到第一个文件    |
 
 ## 9. 错误码约定
 
 多数返回 `int` 的函数使用 0 表示成功，非 0 表示错误。常见错误码与 Rust 内部错误类型保持映射，例如：
 
-| 错误码 | 含义 |
-| ------ | ---- |
-| `0` | 成功 |
-| `-1` | 文件未加载或句柄无效 |
-| `1` | 文件不可访问 |
-| `2` | 流错误 |
-| `3` | 内存映射错误 |
+| 错误码 | 含义                 |
+| ------ | -------------------- |
+| `0`    | 成功                 |
+| `-1`   | 文件未加载或句柄无效 |
+| `1`    | 文件不可访问         |
+| `2`    | 流错误               |
+| `3`    | 内存映射错误         |
 
 返回指针的函数通常用空指针表示失败，并通过输出参数返回 0 或保留错误上下文。
 

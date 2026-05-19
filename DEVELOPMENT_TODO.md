@@ -234,15 +234,15 @@
 
 ## 📊 进度追踪
 
-| 阶段     | 任务数 | 完成   | 进度     |
-| -------- | ------ | ------ | -------- |
-| 第一阶段 | 3      | 3      | 100%     |
-| 第二阶段 | 4      | 4      | 100%     |
-| 第三阶段 | 3      | 3      | 100%     |
-| 第四阶段 | 5      | 5      | 100%     |
-| 发布配套 | 3      | 3      | 100%     |
-| 文档配套 | 3      | 2      | 67%      |
-| **总计** | **21** | **20** | **95%**  |
+| 阶段     | 任务数 | 完成   | 进度    |
+| -------- | ------ | ------ | ------- |
+| 第一阶段 | 3      | 3      | 100%    |
+| 第二阶段 | 4      | 4      | 100%    |
+| 第三阶段 | 3      | 3      | 100%    |
+| 第四阶段 | 5      | 5      | 100%    |
+| 发布配套 | 4      | 4      | 100%    |
+| 文档配套 | 3      | 2      | 67%     |
+| **总计** | **22** | **21** | **95%** |
 
 ---
 
@@ -267,6 +267,13 @@
 - **影响**：超大文件场景下会产生额外内存拷贝，语义未完全覆盖
 - **修复方案**：在 FFI 句柄中持有 `Mmap` 资源，`GetFileMappedHuge` 返回映射指针，`ClearHugeBuffer` 释放映射；Rust 高层 `get_huge_buffer()` 保留安全拷贝 API
 - **测试**：已添加 `get_file_mapped_huge_retains_mmap_until_clear`
+- **状态**：✅ 已完成（2026-05-20）
+
+### ✅ Task R.4: 补齐 C/C++ 链接运行 smoke 验证
+
+- **文件**：[scripts/check_c_abi.ps1](scripts/check_c_abi.ps1)、[tests/c_smoke.c](tests/c_smoke.c)、[tests/cpp_smoke.cpp](tests/cpp_smoke.cpp)
+- **问题**：此前 C/C++ smoke 仅验证头文件可编译为 object，未验证 release 动态库可被真实链接和调用
+- **修复方案**：检查脚本在验证 cbindgen 头文件后构建 release 库，分别链接 C 与 C++ smoke 可执行文件，并运行加载、扫描、行查询、读取、huge mmap、编码工具和 C++ RAII wrapper 的最小闭环
 - **状态**：✅ 已完成（2026-05-20）
 
 ---
@@ -309,7 +316,7 @@
 - **Rust 源代码**：[src/](src/)
 - **测试文件**：[tests/](tests/)（包含 C ABI smoke 输入）
 - **C API 使用指南**：[docs/c_api_usage.md](docs/c_api_usage.md) / [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
-- **C/C++ 头文件**：[include/fjiffyldg.h](include/fjiffyldg.h)，由 [cbindgen.toml](cbindgen.toml) 和 [scripts/generate_c_header.ps1](scripts/generate_c_header.ps1) 生成，运行 `pwsh -File scripts/check_c_abi.ps1` 验证生成结果和声明可编译
+- **C/C++ 头文件**：[include/fjiffyldg.h](include/fjiffyldg.h)，由 [cbindgen.toml](cbindgen.toml) 和 [scripts/generate_c_header.ps1](scripts/generate_c_header.ps1) 生成，运行 `pwsh -File scripts/check_c_abi.ps1` 验证生成结果、声明编译、动态库链接与 smoke 运行
 - **大文件基准**：[benches/large_file.rs](benches/large_file.rs)，运行 `cargo bench --bench large_file`
 
 ---
@@ -320,5 +327,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档）
+**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与链接运行 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档）
 **维护者**：开发团队
