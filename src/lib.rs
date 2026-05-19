@@ -98,6 +98,14 @@ impl Fjiffyldg {
         self.inner.is_loaded()
     }
 
+    /// 获取文件加载状态
+    ///
+    /// 返回 `Ok(true)` 表示已加载，`Ok(false)` 表示尚未加载且没有错误，
+    /// 返回 `Err` 表示最近一次加载或文件操作失败。
+    pub fn load_status(&self) -> Result<bool> {
+        self.inner.get_load_status()
+    }
+
     /// 检查是否仍在扫描中
     pub fn is_scanning(&self) -> bool {
         self.inner.is_scanning()
@@ -262,6 +270,29 @@ mod tests {
 
         let content = std::fs::read(temp2.path()).unwrap();
         assert_eq!(content, b"hello world");
+    }
+
+    #[test]
+    fn test_load_status_reports_unloaded_error_and_loaded() {
+        let fjiffyldg = Fjiffyldg::new();
+        assert_eq!(fjiffyldg.load_status(), Ok(false));
+
+        let missing_path = std::env::temp_dir().join("fjiffyldg-rs-missing-load-status.txt");
+        let _ = std::fs::remove_file(&missing_path);
+        assert_eq!(
+            fjiffyldg.load(&missing_path),
+            Err(FjiffyldgError::FileInaccessible)
+        );
+        assert_eq!(
+            fjiffyldg.load_status(),
+            Err(FjiffyldgError::FileInaccessible)
+        );
+
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"hello").unwrap();
+        fjiffyldg.load(temp.path()).unwrap();
+
+        assert_eq!(fjiffyldg.load_status(), Ok(true));
     }
 
     #[test]

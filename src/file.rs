@@ -97,6 +97,23 @@ impl FileModel {
         *self.is_loaded.read()
     }
 
+    /// 获取文件加载状态
+    ///
+    /// 返回 `Ok(true)` 表示已加载，`Ok(false)` 表示尚未加载且没有错误，
+    /// 返回 `Err` 表示最近一次加载或文件操作失败。
+    pub fn get_load_status(&self) -> Result<bool> {
+        if self.is_loaded() {
+            return Ok(true);
+        }
+
+        let code = self.get_error_code();
+        if code == 0 {
+            Ok(false)
+        } else {
+            Err(FjiffyldgError::from_error_code(code).unwrap_or(FjiffyldgError::IoError))
+        }
+    }
+
     /// 检查行扫描是否完成
     pub fn is_scanning(&self) -> bool {
         self.scanning.load(Ordering::Acquire)

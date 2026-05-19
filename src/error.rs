@@ -69,6 +69,24 @@ impl FjiffyldgError {
             FjiffyldgError::IoError => -2,
         }
     }
+
+    /// 从 C 兼容错误码还原为错误类型
+    ///
+    /// 返回 `None` 表示错误码为 `0` 或未知值。
+    pub fn from_error_code(code: i32) -> Option<Self> {
+        match code {
+            -1 => Some(FjiffyldgError::FileNotLoaded),
+            1 => Some(FjiffyldgError::FileInaccessible),
+            2 => Some(FjiffyldgError::StreamError),
+            3 => Some(FjiffyldgError::MmapError),
+            4 => Some(FjiffyldgError::InvalidOffset),
+            5 => Some(FjiffyldgError::InvalidLineIndex),
+            6 => Some(FjiffyldgError::BufferTooSmall),
+            7 => Some(FjiffyldgError::EncodingError),
+            -2 => Some(FjiffyldgError::IoError),
+            _ => None,
+        }
+    }
 }
 
 /// 标准返回值类型
