@@ -328,26 +328,20 @@ impl LineIndex {
             return *self.cached_pos.read() as i64;
         }
 
+        let (left, right) = self.search_bounds_by_line(index);
+        if index < left || index >= right {
+            return -1;
+        }
+
         let dir_offs = self.direct_offsets.read();
         let ext_offs = self.extended_offsets.read();
+        let Some(pos) = Self::offset_at(index, &dir_offs, &ext_offs) else {
+            return -1;
+        };
 
-        if index < dir_offs.len() {
-            let pos = dir_offs[index] as i64;
-            drop(dir_offs);
-            drop(ext_offs);
-
-            *self.cached_line.write() = index as u64;
-            *self.cached_pos.write() = pos as u64;
-            pos
-        } else {
-            let pos = ext_offs[index - dir_offs.len()] as i64;
-            drop(dir_offs);
-            drop(ext_offs);
-
-            *self.cached_line.write() = index as u64;
-            *self.cached_pos.write() = pos as u64;
-            pos
-        }
+        *self.cached_line.write() = index as u64;
+        *self.cached_pos.write() = pos;
+        pos as i64
     }
 
     /// 根据字节位置查找所在行索引
@@ -367,10 +361,9 @@ impl LineIndex {
 
         while left < right {
             let mid = (left + right) / 2;
-            let offset = if mid < dir_offs.len() {
-                dir_offs[mid] as u64
-            } else {
-                ext_offs[mid - dir_offs.len()]
+            let Some(offset) = Self::offset_at(mid, &dir_offs, &ext_offs) else {
+                right = mid;
+                continue;
             };
 
             if offset <= pos {
@@ -385,6 +378,46 @@ impl LineIndex {
         } else {
             0
         }
+    }
+
+    /// 读取指定全局行号对应的偏移。
+    fn offset_at(index: usize, dir_offs: &[u32], ext_offs: &[u64]) -> Option<u64> {
+        if index < dir_offs.len() {
+            Some(dir_offs[index] as u64)
+        } else {
+            ext_offs.get(index - dir_offs.len()).copied()
+        }
+    }
+
+    /// 使用分块索引为行号查询裁剪全局行偏移范围。
+    fn search_bounds_by_line(&self, line_index: usize) -> (usize, usize) {
+        let dir_len = self.direct_offsets.read().len();
+        let ext_len = self.extended_offsets.read().len();
+        let total_offsets = dir_len + ext_len;
+        let chunks = self.chunks.read();
+
+        if chunks.is_empty() || total_offsets == 0 || line_index < CHUNK_BEGIN {
+            return (0, total_offsets);
+        }
+
+        let chunk_partition =
+            chunks.partition_point(|chunk| chunk.max_line_index < line_index as u64);
+        if chunk_partition >= chunks.len() {
+            let left = chunks
+                .last()
+                .map(|chunk| chunk.max_line_index as usize + 1)
+                .unwrap_or(CHUNK_BEGIN);
+            return (left.min(total_offsets), total_offsets);
+        }
+
+        let left = if chunk_partition == 0 {
+            CHUNK_BEGIN
+        } else {
+            chunks[chunk_partition - 1].max_line_index as usize + 1
+        };
+        let right = chunks[chunk_partition].max_line_index as usize + 1;
+
+        (left.min(total_offsets), right.min(total_offsets))
     }
 
     /// 使用分块索引为字节位置查询裁剪全局行偏移二分范围。
@@ -608,6 +641,10 @@ mod tests {
         fn search_bounds_by_pos_for_tests(&self, pos: u64) -> (usize, usize) {
             self.search_bounds_by_pos(pos)
         }
+
+        fn search_bounds_by_line_for_tests(&self, line_index: usize) -> (usize, usize) {
+            self.search_bounds_by_line(line_index)
+        }
     }
 
     #[test]
@@ -829,6 +866,28 @@ mod tests {
     }
 
     #[test]
+    fn test_chunk_index_narrows_line_search_bounds() {
+        let index = LineIndex::new();
+        let line_count = DIRECT_LINES_MAX + 140_000;
+        let mut data = Vec::with_capacity(line_count * 2);
+
+        for _ in 0..line_count {
+            data.extend_from_slice(b"x\n");
+        }
+
+        index.build_from_data(&data, UtfMode::Default);
+
+        let target = DIRECT_LINES_MAX + 65_536;
+        let (left, right) = index.search_bounds_by_line_for_tests(target);
+
+        assert!(left >= DIRECT_LINES_MAX);
+        assert!(left <= target);
+        assert!(right > target);
+        assert!(right - left < 140_000);
+        assert_eq!(index.get_line_pos(target), (target * 2) as i64);
+    }
+
+    #[test]
     fn test_overstep_position_records_first_chunk_overflow() {
         let index = LineIndex::new();
 
@@ -859,6 +918,31 @@ mod tests {
         assert_eq!(
             index.get_line_by_pos((1_000 + CHUNK_SIZE + 20) as i64),
             (DIRECT_LINES_MAX + 2) as i64
+        );
+    }
+
+    #[test]
+    fn test_overstep_position_narrows_line_search_after_last_chunk() {
+        let index = LineIndex::new();
+        index.direct_offsets.write().resize(DIRECT_LINES_MAX, 0);
+        index.extended_offsets.write().extend_from_slice(&[
+            1_000,
+            1_000 + CHUNK_SIZE + 10,
+            1_000 + CHUNK_SIZE + 20,
+        ]);
+        *index.total_lines.write() = (DIRECT_LINES_MAX + 3) as u64;
+        index.mark_scanned();
+
+        index.add_chunk_for_tests(DIRECT_LINES_MAX as u64, 1_000, 1);
+        index.add_chunk_for_tests((DIRECT_LINES_MAX + 1) as u64, 1_000 + CHUNK_SIZE + 10, 1);
+
+        let (left, right) = index.search_bounds_by_line_for_tests(DIRECT_LINES_MAX + 2);
+
+        assert_eq!(left, DIRECT_LINES_MAX + 1);
+        assert_eq!(right, DIRECT_LINES_MAX + 3);
+        assert_eq!(
+            index.get_line_pos(DIRECT_LINES_MAX + 2),
+            (1_000 + CHUNK_SIZE + 20) as i64
         );
     }
 
