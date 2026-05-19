@@ -111,7 +111,8 @@
   - 实现 1GB 分块映射（`MMAP_FILECHUNK`）
   - 维护当前 mmap 窗口偏移与窗口大小
   - 在读取时动态切换分块
-- **测试**：已添加 `test_read_data_remaps_window_for_far_mmap_offset`，通过小窗口注入验证跨窗口读取会重新映射
+  - 后台扫描按 mmap 窗口顺序推进，并保留窗口尾部字节处理跨窗口换行
+- **测试**：已添加 `test_read_data_remaps_window_for_far_mmap_offset`、`test_scan_uses_all_mmap_windows`、`test_windowed_scan_supports_unaligned_restart_offset` 与 `test_windowed_scan_preserves_crlf_across_boundary`，通过小窗口注入验证跨窗口读取、扫描、非对齐重扫偏移与 CRLF 边界
 - **状态**：✅ 已完成（2026-05-20）
 - **复杂度**：高
 
@@ -265,5 +266,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待与 C FFI 核心绑定）
+**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待与 C FFI 核心绑定）
 **维护者**：开发团队

@@ -154,6 +154,155 @@ impl LineIndex {
         true
     }
 
+    /// 从连续窗口读取器建立可取消的行索引。
+    ///
+    /// 调用方按需返回指定文件窗口的数据，本函数会保留足够的尾部字节以识别跨窗口
+    /// 的 CRLF 或定宽编码换行符，从而避免在窗口边界产生错误行。返回 `false`
+    /// 表示读取窗口失败或扫描被取消，此时索引会被清空并标记扫描结束。
+    pub fn build_from_windows_at_cancelable<F>(
+        &self,
+        start_offset: u64,
+        file_size: u64,
+        chunk_size: u64,
+        utf_mode: UtfMode,
+        cancel_requested: &AtomicBool,
+        mut read_window: F,
+    ) -> bool
+    where
+        F: FnMut(u64, u64) -> Option<Vec<u8>>,
+    {
+        self.clear();
+
+        if cancel_requested.load(Ordering::Acquire) {
+            self.mark_scanned();
+            return false;
+        }
+
+        if start_offset >= file_size {
+            self.mark_scanned();
+            return true;
+        }
+
+        self.add_line(start_offset);
+
+        let chunk_size = chunk_size.max(1);
+        let retain_len = Self::boundary_retain_len(utf_mode);
+        let mut line_start_abs = start_offset;
+        let mut scan_abs = start_offset;
+        let mut cursor = start_offset;
+        let mut pending_base = start_offset;
+        let mut pending = Vec::new();
+
+        while cursor < file_size {
+            if cancel_requested.load(Ordering::Acquire) {
+                self.clear();
+                self.mark_scanned();
+                return false;
+            }
+
+            let window_len = chunk_size.min(file_size - cursor);
+            let Some(mut window) = read_window(cursor, window_len) else {
+                self.clear();
+                self.mark_scanned();
+                return false;
+            };
+
+            if window.is_empty() {
+                self.clear();
+                self.mark_scanned();
+                return false;
+            }
+
+            if pending.is_empty() {
+                pending_base = cursor;
+                scan_abs = cursor;
+            }
+
+            pending.append(&mut window);
+            cursor += window_len;
+
+            let process_len = if cursor < file_size {
+                pending.len().saturating_sub(retain_len)
+            } else {
+                pending.len()
+            };
+
+            if !self.scan_pending_until(
+                &pending,
+                pending_base,
+                &mut scan_abs,
+                process_len,
+                &mut line_start_abs,
+                utf_mode,
+                cancel_requested,
+            ) {
+                self.clear();
+                self.mark_scanned();
+                return false;
+            }
+
+            let scanned_len = (scan_abs - pending_base) as usize;
+            if scanned_len > 0 {
+                pending.drain(..scanned_len);
+                pending_base = scan_abs;
+            }
+        }
+
+        if cancel_requested.load(Ordering::Acquire) {
+            self.clear();
+            self.mark_scanned();
+            return false;
+        }
+
+        self.add_line_length(file_size.saturating_sub(line_start_abs));
+        *self.total_lines.write() = self.line_lengths.read().len() as u64;
+        self.mark_scanned();
+        true
+    }
+
+    /// 扫描暂存窗口中可安全处理的前缀。
+    fn scan_pending_until(
+        &self,
+        pending: &[u8],
+        pending_base: u64,
+        scan_abs: &mut u64,
+        process_len: usize,
+        line_start_abs: &mut u64,
+        utf_mode: UtfMode,
+        cancel_requested: &AtomicBool,
+    ) -> bool {
+        let mut scan_pos = (*scan_abs - pending_base) as usize;
+
+        while scan_pos < process_len {
+            if cancel_requested.load(Ordering::Acquire) {
+                return false;
+            }
+
+            if let Some(newline_len) = Self::newline_len_at(pending, scan_pos, utf_mode) {
+                let newline_abs = pending_base + scan_pos as u64;
+                self.add_line_length(newline_abs.saturating_sub(*line_start_abs));
+                scan_pos += newline_len;
+                *scan_abs = pending_base + scan_pos as u64;
+                *line_start_abs = *scan_abs;
+                self.add_line(*scan_abs);
+            } else {
+                scan_pos += Self::scan_step(pending, scan_pos, utf_mode);
+                *scan_abs = pending_base + scan_pos as u64;
+            }
+        }
+
+        true
+    }
+
+    /// 返回跨窗口扫描时需要保留的尾部字节数。
+    fn boundary_retain_len(utf_mode: UtfMode) -> usize {
+        match utf_mode {
+            UtfMode::Default => 1,
+            UtfMode::Utf16Le | UtfMode::Utf16Be => 3,
+            UtfMode::Utf32Le | UtfMode::Utf32Be => 7,
+        }
+    }
+
     /// 获取指定行的长度
     pub fn get_line_length(&self, index: usize) -> i64 {
         let total_lines = *self.total_lines.read() as usize;
@@ -515,6 +664,28 @@ mod tests {
         assert_eq!(index.get_line_length(0), 5);
         assert_eq!(index.get_line_length(1), 5);
         assert_eq!(index.get_line_length(2), 0);
+    }
+
+    #[test]
+    fn test_windowed_scan_preserves_crlf_across_boundary() {
+        let index = LineIndex::new();
+        let data = b"abc\r\ndef";
+        let cancel_requested = AtomicBool::new(false);
+
+        assert!(index.build_from_windows_at_cancelable(
+            0,
+            data.len() as u64,
+            4,
+            UtfMode::Default,
+            &cancel_requested,
+            |offset, len| Some(data[offset as usize..(offset + len) as usize].to_vec()),
+        ));
+
+        assert_eq!(index.get_line_count(), 2);
+        assert_eq!(index.get_line_pos(0), 0);
+        assert_eq!(index.get_line_pos(1), 5);
+        assert_eq!(index.get_line_length(0), 3);
+        assert_eq!(index.get_line_length(1), 3);
     }
 
     #[test]

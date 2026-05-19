@@ -92,6 +92,7 @@ impl Drop for ScanCompletionGuard {
 }
 
 /// 后台扫描共享的原始字节缓冲。
+#[allow(dead_code)]
 #[derive(Clone)]
 enum ScanBuffer {
     /// 小文件内存缓冲
@@ -381,34 +382,111 @@ impl FileModel {
         let scan_state = Arc::clone(&self.scan_state);
         let cancel_requested = Arc::clone(&self.cancel_requested);
         let line_index = Arc::clone(&self.line_index);
-        let Some(scan_buffer) = self.get_scan_buffer() else {
+        let current_utf_mode = self.get_utf_mode();
+
+        if let Some(scan_buffer) = self
+            .data
+            .read()
+            .as_ref()
+            .map(|data| ScanBuffer::Owned(Arc::clone(data)))
+        {
+            let file_utf_mode = Self::detect_utf_mode(scan_buffer.as_slice());
+            cancel_requested.store(false, Ordering::Release);
+            scan_state.begin();
+
+            rayon::spawn(move || {
+                let _completion_guard = ScanCompletionGuard::new(scan_state);
+                let scan_data = scan_buffer.slice_from(offset);
+                let utf_mode = Self::resolve_scan_utf_mode(
+                    forced_utf_mode,
+                    auto_detect,
+                    file_utf_mode,
+                    current_utf_mode,
+                );
+
+                let _ = line_index.build_from_data_at_cancelable(
+                    scan_data,
+                    offset,
+                    utf_mode,
+                    &cancel_requested,
+                );
+            });
+            return;
+        }
+
+        let Some(first_mmap) = self.mmap.read().as_ref().map(Arc::clone) else {
             self.line_index.mark_scanned();
             return;
         };
-        let file_utf_mode = Self::detect_utf_mode(scan_buffer.as_slice());
-        let current_utf_mode = self.get_utf_mode();
+        let Some(file) = self
+            .file
+            .read()
+            .as_ref()
+            .and_then(|file| file.try_clone().ok())
+        else {
+            self.line_index.mark_scanned();
+            return;
+        };
+        let file_size = *self.file_size.read();
+        let mmap_chunk_size = (*self.mmap_chunk_size.read()).max(1);
+        let file_utf_mode = Self::detect_utf_mode(&first_mmap);
 
         cancel_requested.store(false, Ordering::Release);
         scan_state.begin();
 
         rayon::spawn(move || {
             let _completion_guard = ScanCompletionGuard::new(scan_state);
-            let scan_data = scan_buffer.slice_from(offset);
-            let utf_mode = match forced_utf_mode {
-                Some(UtfMode::Default) if auto_detect => file_utf_mode,
-                Some(mode) => mode,
-                None if current_utf_mode != UtfMode::Default => current_utf_mode,
-                None if auto_detect => file_utf_mode,
-                None => UtfMode::Default,
-            };
+            let utf_mode = Self::resolve_scan_utf_mode(
+                forced_utf_mode,
+                auto_detect,
+                file_utf_mode,
+                current_utf_mode,
+            );
 
-            let _ = line_index.build_from_data_at_cancelable(
-                scan_data,
+            let _ = line_index.build_from_windows_at_cancelable(
                 offset,
+                file_size,
+                mmap_chunk_size,
                 utf_mode,
                 &cancel_requested,
+                |window_offset, window_len| {
+                    let aligned_offset = (window_offset / mmap_chunk_size) * mmap_chunk_size;
+                    let delta = window_offset - aligned_offset;
+                    let requested_end = window_offset.saturating_add(window_len).min(file_size);
+                    let map_end = aligned_offset
+                        .saturating_add(mmap_chunk_size)
+                        .max(requested_end)
+                        .min(file_size);
+                    let map_len = usize::try_from(map_end.saturating_sub(aligned_offset)).ok()?;
+                    let begin = usize::try_from(delta).ok()?;
+                    let end = begin.checked_add(usize::try_from(window_len).ok()?)?;
+                    let mmap = unsafe {
+                        MmapOptions::new()
+                            .offset(aligned_offset)
+                            .len(map_len)
+                            .map(&file)
+                            .ok()?
+                    };
+                    Some(mmap.get(begin..end)?.to_vec())
+                },
             );
         });
+    }
+
+    /// 解析本次行扫描使用的 UTF 模式。
+    fn resolve_scan_utf_mode(
+        forced_utf_mode: Option<UtfMode>,
+        auto_detect: bool,
+        file_utf_mode: UtfMode,
+        current_utf_mode: UtfMode,
+    ) -> UtfMode {
+        match forced_utf_mode {
+            Some(UtfMode::Default) if auto_detect => file_utf_mode,
+            Some(mode) => mode,
+            None if current_utf_mode != UtfMode::Default => current_utf_mode,
+            None if auto_detect => file_utf_mode,
+            None => UtfMode::Default,
+        }
     }
 
     /// 根据 BOM 检测行扫描使用的 UTF 模式
@@ -470,6 +548,7 @@ impl FileModel {
     }
 
     /// 获取原始文件数据
+    #[allow(dead_code)]
     fn get_scan_buffer(&self) -> Option<ScanBuffer> {
         if let Some(data) = self.data.read().as_ref() {
             return Some(ScanBuffer::Owned(Arc::clone(data)));
@@ -838,6 +917,50 @@ mod tests {
         assert_eq!(*model.mmap_offset.read(), 0);
         assert_eq!(model.read_data(target_pos as i64, 5).unwrap(), b"hello");
         assert_eq!(*model.mmap_offset.read(), window_size);
+    }
+
+    #[test]
+    fn test_scan_uses_all_mmap_windows() {
+        let mut temp = NamedTempFile::new().unwrap();
+        let window_size = 4096u64;
+        let mut data = vec![b'a'; (USUALLY_IO_SIZE_MAX as usize) + 64];
+        data[8] = b'\n';
+        data[window_size as usize + 17] = b'\n';
+        temp.write_all(&data).unwrap();
+
+        let model = FileModel::new();
+        model
+            .load_file_with_mmap_chunk_size(temp.path(), true, window_size)
+            .unwrap();
+        model.wait_scan_complete();
+
+        assert_eq!(model.get_line_count(), 3);
+        assert_eq!(model.get_line_pos(1), 9);
+        assert_eq!(model.get_line_pos(2), window_size as i64 + 18);
+    }
+
+    #[test]
+    fn test_windowed_scan_supports_unaligned_restart_offset() {
+        let mut temp = NamedTempFile::new().unwrap();
+        let window_size = 4096u64;
+        let mut data = vec![b'a'; (USUALLY_IO_SIZE_MAX as usize) + 64];
+        data[8] = b'\n';
+        data[window_size as usize + 17] = b'\n';
+        temp.write_all(&data).unwrap();
+
+        let model = FileModel::new();
+        model
+            .load_file_with_mmap_chunk_size(temp.path(), false, window_size)
+            .unwrap();
+        model
+            .restart_scan_with_auto_detect(3, UtfMode::Default, false)
+            .unwrap();
+        model.wait_scan_complete();
+
+        assert_eq!(model.get_line_count(), 3);
+        assert_eq!(model.get_line_pos(0), 3);
+        assert_eq!(model.get_line_pos(1), 9);
+        assert_eq!(model.get_line_pos(2), window_size as i64 + 18);
     }
 
     #[test]
