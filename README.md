@@ -125,9 +125,10 @@ fjiffyldg-rs/
 
 ## 🤝 贡献
 
-欢迎提交 Issue 和 Pull Request！
+欢迎提交 Issue 和 Pull Request。仓库提供 bug、feature、C ABI 和性能回归模板，并通过 GitHub Actions 运行格式、Clippy、测试、文档、benchmark 编译、C/C++ ABI smoke 和发布 dry-run。参与前建议阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，安全问题请参考 [SECURITY.md](SECURITY.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 📞 联系方式
 
 - 项目主页: https://github.com/fangfuzha/fjiffyldg-rs
+- 文档主页: https://docs.rs/fjiffyldg
 - 作者: fangfuzha

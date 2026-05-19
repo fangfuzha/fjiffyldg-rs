@@ -5,6 +5,7 @@
 
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::encoding::{
     check_extract_text_utf8, check_text_ascii, check_whole_text_utf8,

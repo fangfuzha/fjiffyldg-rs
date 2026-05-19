@@ -261,6 +261,7 @@ impl LineIndex {
     }
 
     /// 扫描暂存窗口中可安全处理的前缀。
+    #[allow(clippy::too_many_arguments)]
     fn scan_pending_until(
         &self,
         pending: &[u8],

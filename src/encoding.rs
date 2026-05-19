@@ -36,7 +36,7 @@ pub fn check_text_ascii(text: &[u8]) -> usize {
     // 处理对齐前缀
     if offset != 0 {
         let aligned = 8 - offset;
-        let lim = (aligned as usize).min(text.len());
+        let lim = aligned.min(text.len());
         for i in 0..lim {
             if (text[i] & 0x80) != 0 {
                 return text.len() - i;
@@ -107,12 +107,10 @@ pub fn check_utf8_char(text: &[u8], width: usize) -> bool {
         return false;
     }
 
-    for i in 1..width {
-        if !is_valid_utf8_continuation(text[i]) {
-            return false;
-        }
-    }
-    true
+    text.iter()
+        .take(width)
+        .skip(1)
+        .all(|byte| is_valid_utf8_continuation(*byte))
 }
 
 /// 完整检查文本UTF-8编码有效性
@@ -300,6 +298,7 @@ pub fn detect_encoding(data: &[u8]) -> TextEncoding {
 /// 将文本转换为UTF-8
 ///
 /// 对UTF-16/32自动进行编码转换，其他编码直接返回原始数据。
+#[allow(clippy::result_unit_err)]
 pub fn convert_to_utf8(data: &[u8], encoding: &TextEncoding) -> std::result::Result<Vec<u8>, ()> {
     match encoding {
         TextEncoding::Utf16Le => {

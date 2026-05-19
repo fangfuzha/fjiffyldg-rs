@@ -105,9 +105,10 @@ fjiffyldg-rs/
 
 ## Contributing
 
-Issues and pull requests are welcome.
+Issues and pull requests are welcome. The repository provides templates for bugs, features, C ABI issues, and performance regressions, and GitHub Actions runs formatting, Clippy, tests, documentation, benchmark compilation, C/C++ ABI smoke, and publish dry-run. Read [CONTRIBUTING_EN.md](CONTRIBUTING_EN.md) before contributing, see [SECURITY_EN.md](SECURITY_EN.md) for security reports, and see [CHANGELOG_EN.md](CHANGELOG_EN.md) for release history.
 
 ## Contact
 
 - Project: https://github.com/fangfuzha/fjiffyldg-rs
+- Documentation: https://docs.rs/fjiffyldg
 - Author: fangfuzha

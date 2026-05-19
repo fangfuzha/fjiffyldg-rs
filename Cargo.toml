@@ -2,14 +2,21 @@
 name = "fjiffyldg"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70"
 authors = ["fangfuzha"]
 description = "High-performance cross-platform file processing library"
 license = "BSD-3-Clause OR MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/fangfuzha/fjiffyldg-rs"
 homepage = "https://github.com/fangfuzha/fjiffyldg-rs"
-keywords = ["file", "mmap", "large-file", "utf8", "高性能", "文件处理"]
-categories = ["filesystem", "encoding", "memory-mapped-files"]
+documentation = "https://docs.rs/fjiffyldg"
+keywords = ["file", "mmap", "large-file", "encoding", "ffi"]
+categories = ["filesystem", "encoding", "api-bindings"]
+exclude = [
+    "target/**",
+    "reference/**",
+    ".github/**",
+]
 
 [lib]
 name = "fjiffyldg"
@@ -29,6 +36,14 @@ tempfile = "3.10"
 [[bench]]
 name = "large_file"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "aarch64-apple-darwin",
+]
 
 [profile.release]
 opt-level = 3

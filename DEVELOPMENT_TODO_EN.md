@@ -69,11 +69,29 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 | Phase 4         | 5     | 5    | 100%     |
 | Release support | 4     | 4    | 100%     |
 | Documentation   | 4     | 3    | 75%      |
+| Open governance | 9     | 5    | 56%      |
+
+## Open Governance and Release Engineering Tasks
+
+This checklist is based on Rust API Guidelines, Cargo publishing metadata, docs.rs metadata, GitHub community health files, Keep a Changelog, SemVer, and C ABI stability practices.
+
+| Task | Status | Notes |
+| ---- | ------ | ----- |
+| Add cross-platform CI quality gates | Done | [.github/workflows/ci.yml](.github/workflows/ci.yml) runs fmt, Clippy, tests, docs, benchmark compilation, C/C++ ABI smoke, and publish dry-run on Windows/Linux/macOS |
+| Add contributing guide and security policy | Done | [CONTRIBUTING.md](CONTRIBUTING.md) / [CONTRIBUTING_EN.md](CONTRIBUTING_EN.md), [SECURITY.md](SECURITY.md) / [SECURITY_EN.md](SECURITY_EN.md) document development checks, C API change rules, bilingual docs, vulnerability reporting, supported versions, and security boundaries |
+| Add changelog | Done | [CHANGELOG.md](CHANGELOG.md) / [CHANGELOG_EN.md](CHANGELOG_EN.md) follow Keep a Changelog and record the initial `0.1.0` baseline |
+| Complete Cargo publishing metadata | Done | [Cargo.toml](Cargo.toml) includes `rust-version`, `documentation`, docs.rs metadata, crates.io-compliant keywords/categories, and package excludes |
+| Add collaboration templates | Done | Added `.github/ISSUE_TEMPLATE/*` and `.github/PULL_REQUEST_TEMPLATE.md` for bugs, features, C ABI issues, performance regressions, and PR checklist |
+| Add dependency and supply-chain governance | Todo | Add `.github/dependabot.yml` and `deny.toml` for GitHub Actions/Cargo updates, licenses, advisories, duplicate dependencies, and banned crates |
+| Add formatting, newline, and repository attributes | Todo | Add [rustfmt.toml](rustfmt.toml), [.editorconfig](.editorconfig), and [.gitattributes](.gitattributes) for formatting, line endings, generated-file markers, and reference linguist handling |
+| Document release and SemVer/ABI rules | Todo | Add `docs/release.md` / `docs/release_en.md` for versioning, pre-release checks, packaging, publish dry-run, tags, GitHub Release, docs.rs checks, C ABI compatibility, and yanking |
+| Improve README trust signals | Todo | Add badges or links for CI, crates.io, docs.rs, license, MSRV, contributing, security, changelog, and release status |
 
 ## Remaining Work
 
 - Run real huge-file benchmarks beyond the automated 12 MB Criterion smoke workload.
 - Quantify clone/save/append/concat performance against the C++ implementation.
+- Continue the open governance checklist above.
 
 ## References
 

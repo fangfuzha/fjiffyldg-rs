@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible problem in Fjiffyldg
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please include enough detail to reproduce the issue.
+  - type: input
+    id: version
+    attributes:
+      label: Fjiffyldg version or commit
+      description: Crate version, git commit, or branch.
+      placeholder: "0.1.0 / main / commit SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: api
+    attributes:
+      label: API surface
+      options:
+        - Rust API
+        - C ABI
+        - C++ wrapper
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS, architecture, Rust version, and compiler if C/C++ is involved.
+      placeholder: "Windows x64, rustc 1.80, MSVC / MinGW"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Provide commands, input file size/encoding, and a minimal code sample when possible.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and logs
+      render: text
+    validations:
+      required: true

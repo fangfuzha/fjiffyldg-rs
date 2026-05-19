@@ -242,7 +242,8 @@
 | 第四阶段 | 5      | 5      | 100%    |
 | 发布配套 | 4      | 4      | 100%    |
 | 文档配套 | 4      | 3      | 75%     |
-| **总计** | **23** | **22** | **96%** |
+| 开源治理 | 9      | 5      | 56%     |
+| **总计** | **32** | **27** | **84%** |
 
 ---
 
@@ -304,7 +305,65 @@
 - **状态**：⏳ 持续执行
 
 ---
+## 🌐 开源治理与发布工程任务
 
+基于 Rust API Guidelines、Cargo 发布规范、docs.rs 元数据、GitHub community health 文件、Keep a Changelog、SemVer 与 C ABI 稳定性实践，后续按以下清单补齐完善开源库项目结构。
+
+### ✅ Task O.1: 建立跨平台 CI 质量门禁
+
+- **文件**：[.github/workflows/ci.yml](.github/workflows/ci.yml)
+- **要求**：覆盖 Windows/Linux/macOS，运行 `cargo fmt --all -- --check`、`cargo clippy --all-targets --all-features -- -D warnings`、`cargo test --all-targets --all-features`、`cargo doc --all-features --no-deps`、benchmark 编译、C/C++ ABI smoke、`cargo publish --dry-run`
+- **状态**：✅ 已完成（2026-05-20）
+
+### ✅ Task O.2: 补齐贡献指南与安全政策
+
+- **文件**：[CONTRIBUTING.md](CONTRIBUTING.md)、[CONTRIBUTING_EN.md](CONTRIBUTING_EN.md)、[SECURITY.md](SECURITY.md)、[SECURITY_EN.md](SECURITY_EN.md)
+- **要求**：说明开发环境、提交前检查、C API 修改规则、双语文档同步、漏洞报告方式、支持版本和安全边界
+- **状态**：✅ 已完成（2026-05-20）
+
+### ✅ Task O.3: 建立变更日志
+
+- **文件**：[CHANGELOG.md](CHANGELOG.md)、[CHANGELOG_EN.md](CHANGELOG_EN.md)
+- **要求**：采用 Keep a Changelog 结构，保留未发布区段并记录首个 `0.1.0` 能力基线
+- **状态**：✅ 已完成（2026-05-20）
+
+### ✅ Task O.4: 完善 Cargo 发布元数据
+
+- **文件**：[Cargo.toml](Cargo.toml)
+- **要求**：补充 `rust-version`、`documentation`、docs.rs metadata、crates.io 合规 keywords/categories，并通过 `exclude` 避免打包参考源码和 CI 配置
+- **状态**：✅ 已完成（2026-05-20）
+
+### ✅ Task O.5: 补齐社区协作模板
+
+- **文件**：`.github/ISSUE_TEMPLATE/*`、`.github/PULL_REQUEST_TEMPLATE.md`
+- **要求**：提供 bug、feature、C ABI、性能回归 issue 模板和 PR checklist
+- **状态**：✅ 已完成（2026-05-20）
+
+### ⏳ Task O.6: 增加依赖与供应链治理
+
+- **文件**：`.github/dependabot.yml`、`deny.toml`
+- **要求**：自动检查 GitHub Actions 与 Cargo 依赖更新，并用 cargo-deny 检查许可证、漏洞公告、重复依赖和禁用 crate
+- **状态**：⏳ 待完成
+
+### ⏳ Task O.7: 补齐格式化、换行和仓库属性配置
+
+- **文件**：[rustfmt.toml](rustfmt.toml)、[.editorconfig](.editorconfig)、[.gitattributes](.gitattributes)
+- **要求**：统一 Rust/Markdown/PowerShell 格式、换行符策略、生成文件标记与 reference 目录 linguist 处理
+- **状态**：⏳ 待完成
+
+### ⏳ Task O.8: 建立发布流程与 SemVer/ABI 规则
+
+- **文件**：`docs/release.md`、`docs/release_en.md`
+- **要求**：说明版本号、发布前检查、`cargo package --list`、`cargo publish --dry-run`、tag、GitHub Release、docs.rs 检查、C ABI 兼容与 yank 流程
+- **状态**：⏳ 待完成
+
+### ⏳ Task O.9: 增强 README 项目可信度入口
+
+- **文件**：[README.md](README.md)、[README_EN.md](README_EN.md)
+- **要求**：增加 CI、crates.io、docs.rs、license、MSRV 徽章或链接，并明确贡献、安全、变更日志与发布状态入口
+- **状态**：⏳ 待完成
+
+---
 ## �🎯 建议执行策略
 
 1. **快速赢**（第一周）：完成第一阶段 3 个任务，修复核心功能缺陷
@@ -324,6 +383,9 @@
 - **C API 使用指南**：[docs/c_api_usage.md](docs/c_api_usage.md) / [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
 - **C/C++ 头文件**：[include/fjiffyldg.h](include/fjiffyldg.h)，由 [cbindgen.toml](cbindgen.toml) 和 [scripts/generate_c_header.ps1](scripts/generate_c_header.ps1) 生成，运行 `pwsh -File scripts/check_c_abi.ps1` 验证生成结果、声明编译、动态库链接与 smoke 运行
 - **大文件基准**：[benches/large_file.rs](benches/large_file.rs)，运行 `cargo bench --bench large_file`
+- **贡献指南**：[CONTRIBUTING.md](CONTRIBUTING.md) / [CONTRIBUTING_EN.md](CONTRIBUTING_EN.md)
+- **安全政策**：[SECURITY.md](SECURITY.md) / [SECURITY_EN.md](SECURITY_EN.md)
+- **变更日志**：[CHANGELOG.md](CHANGELOG.md) / [CHANGELOG_EN.md](CHANGELOG_EN.md)
 
 ---
 
@@ -333,5 +395,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与链接运行 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档、C API 全接口参考）
+**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与链接运行 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档、C API 全接口参考、开源治理 TODO、CI、贡献指南、安全政策、变更日志、Cargo 发布元数据、Issue/PR 模板）
 **维护者**：开发团队

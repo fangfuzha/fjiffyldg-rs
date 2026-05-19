@@ -1,3 +1,5 @@
+#![allow(clippy::items_after_test_module)]
+
 use crate::encoding::{detect_encoding, TextEncoding};
 use crate::error::{FjiffyldgError, Result, UtfMode};
 use crate::line_index::LineIndex;

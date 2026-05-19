@@ -1,0 +1,46 @@
+name: Performance regression
+description: Report slower load, scan, query, read, or file operation performance
+title: "perf: "
+labels: [performance]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Compared versions or commits
+      placeholder: "fast commit SHA vs slow commit SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: workload
+    attributes:
+      label: Workload
+      options:
+        - Load and scan
+        - Line query
+        - Byte-range read
+        - Clone/save/append/concatenate
+        - C ABI call path
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input characteristics
+      description: File size, line count, encoding, line length distribution, storage device.
+    validations:
+      required: true
+  - type: textarea
+    id: benchmark
+    attributes:
+      label: Benchmark command and results
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, CPU, memory, disk, Rust version, build profile.
+    validations:
+      required: true
