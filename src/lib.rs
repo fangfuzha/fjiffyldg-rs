@@ -45,13 +45,11 @@ pub mod file;
 pub mod line_index;
 
 pub use encoding::{
-    check_text_ascii, check_whole_text_utf8, check_extract_text_utf8, detect_encoding, get_utf8_char_count,
-    TextEncoding,
+    check_extract_text_utf8, check_text_ascii, check_whole_text_utf8, detect_encoding,
+    get_utf8_char_count, get_utf8_char_count_with_offset, TextEncoding,
 };
 pub use error::{FjiffyldgError, Result, UtfMode};
-pub use file::{
-    append_file, clone_file, concatenate_files, get_file_size, save_file, FileModel,
-};
+pub use file::{append_file, clone_file, concatenate_files, get_file_size, save_file, FileModel};
 
 use std::path::Path;
 
@@ -125,6 +123,15 @@ impl Fjiffyldg {
         self.inner.set_utf_mode(mode)
     }
 
+    /// 重新扫描已加载文件的行结构
+    ///
+    /// # 参数
+    /// - `offset`：重新扫描的文件起始字节偏移
+    /// - `utf_mode`：扫描时使用的定宽编码模式，传入 [`UtfMode::Default`] 时自动按 BOM 检测
+    pub fn restart_scan(&self, offset: u64, utf_mode: UtfMode) -> Result<()> {
+        self.inner.restart_scan(offset, utf_mode)
+    }
+
     /// 获取当前UTF编码模式
     pub fn utf_mode(&self) -> UtfMode {
         self.inner.get_utf_mode()
@@ -165,7 +172,7 @@ impl Fjiffyldg {
     /// # 输出参数
     /// - `bpos`：行起始位置
     /// - `epos`：行结束位置
-    /// - `len`：实际读取长度
+    /// - `len`：输入最大读取长度，输出实际读取长度；若为 0，最多读取 4KB
     pub fn read_line(
         &self,
         index: i64,
@@ -174,6 +181,20 @@ impl Fjiffyldg {
         len: &mut usize,
     ) -> Option<Vec<u8>> {
         self.inner.read_line(index, bpos, epos, len)
+    }
+
+    /// 按 C++ `ReadFileDataLLineCut` 语义读取一段行数据
+    ///
+    /// 短行会按行边界批量读取，`len` 用作批量预算而不是硬上限；超长行会按
+    /// 4KB 临界值截断。返回时 `index` 会推进到最后一个完整纳入读取范围的行。
+    pub fn read_line_cut(
+        &self,
+        index: &mut i64,
+        bpos: &mut i64,
+        epos: &mut i64,
+        len: &mut usize,
+    ) -> Option<Vec<u8>> {
+        self.inner.read_line_cut(index, bpos, epos, len)
     }
 
     /// 从行内指定位置读取到行尾
@@ -214,7 +235,7 @@ mod tests {
     fn test_fjiffyldg_basic() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"line1\nline2\nline3\n").unwrap();
-        
+
         let fjiffyldg = Fjiffyldg::new();
         assert!(fjiffyldg.load_and_scan(temp.path()).is_ok());
         fjiffyldg.wait_scan();
@@ -234,11 +255,11 @@ mod tests {
     fn test_file_operations() {
         let mut temp1 = NamedTempFile::new().unwrap();
         let temp2 = NamedTempFile::new().unwrap();
-        
+
         temp1.write_all(b"hello world").unwrap();
-        
+
         assert!(clone_file(temp1.path(), temp2.path()).is_ok());
-        
+
         let content = std::fs::read(temp2.path()).unwrap();
         assert_eq!(content, b"hello world");
     }
@@ -248,9 +269,124 @@ mod tests {
         assert_eq!(detect_encoding(b"hello"), TextEncoding::Ascii);
         assert_eq!(detect_encoding("你好".as_bytes()), TextEncoding::Utf8);
     }
+
+    #[test]
+    fn test_restart_scan_from_offset() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"skip\nline1\nline2\n").unwrap();
+
+        let fjiffyldg = Fjiffyldg::new();
+        fjiffyldg.load_and_scan(temp.path()).unwrap();
+        fjiffyldg.wait_scan();
+
+        fjiffyldg.restart_scan(5, UtfMode::Default).unwrap();
+        fjiffyldg.wait_scan();
+
+        assert_eq!(fjiffyldg.line_count(), 3);
+        assert_eq!(fjiffyldg.line_pos(0), 5);
+        assert_eq!(fjiffyldg.line_length(0), 5);
+    }
+
+    #[test]
+    fn test_read_line_defaults_to_long_line_cutoff() {
+        let mut temp = NamedTempFile::new().unwrap();
+        let long_line = vec![b'x'; 5 * 1024];
+        temp.write_all(&long_line).unwrap();
+        temp.write_all(b"\nnext\n").unwrap();
+
+        let fjiffyldg = Fjiffyldg::new();
+        fjiffyldg.load_and_scan(temp.path()).unwrap();
+        fjiffyldg.wait_scan();
+
+        let mut begin = -1;
+        let mut end = -1;
+        let mut len = 0;
+        let data = fjiffyldg
+            .read_line(0, &mut begin, &mut end, &mut len)
+            .unwrap();
+
+        assert_eq!(begin, 0);
+        assert_eq!(end, 4096);
+        assert_eq!(len, 4096);
+        assert_eq!(data.len(), 4096);
+
+        let mut index = 0;
+        let mut begin = -1;
+        let mut end = -1;
+        let mut len = 0;
+        let data = fjiffyldg
+            .read_line_cut(&mut index, &mut begin, &mut end, &mut len)
+            .unwrap();
+
+        assert_eq!(index, 0);
+        assert_eq!(begin, 0);
+        assert_eq!(end, 4096);
+        assert_eq!(len, 4096);
+        assert_eq!(data.len(), 4096);
+    }
+
+    #[test]
+    fn test_read_line_cut_batches_short_lines() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"a\nb\nc\n").unwrap();
+
+        let fjiffyldg = Fjiffyldg::new();
+        fjiffyldg.load_and_scan(temp.path()).unwrap();
+        fjiffyldg.wait_scan();
+
+        let mut index = 0;
+        let mut begin = -1;
+        let mut end = -1;
+        let mut len = 0;
+        let data = fjiffyldg
+            .read_line_cut(&mut index, &mut begin, &mut end, &mut len)
+            .unwrap();
+
+        assert_eq!(index, 3);
+        assert_eq!(begin, 0);
+        assert_eq!(end, 6);
+        assert_eq!(len, 6);
+        assert_eq!(data, b"a\nb\nc\n");
+
+        let mut index = 0;
+        let mut begin = -1;
+        let mut end = -1;
+        let mut len = 1;
+        let data = fjiffyldg
+            .read_line_cut(&mut index, &mut begin, &mut end, &mut len)
+            .unwrap();
+
+        assert_eq!(index, 0);
+        assert_eq!(begin, 0);
+        assert_eq!(end, 2);
+        assert_eq!(len, 2);
+        assert_eq!(data, b"a\n");
+    }
+
+    #[test]
+    fn test_restart_scan_default_uses_file_bom_before_offset() {
+        let mut temp = NamedTempFile::new().unwrap();
+        let mut data = vec![0xFF, 0xFE];
+        for unit in "skip\nline\n".encode_utf16() {
+            data.extend_from_slice(&unit.to_le_bytes());
+        }
+        temp.write_all(&data).unwrap();
+
+        let fjiffyldg = Fjiffyldg::new();
+        fjiffyldg.load_and_scan(temp.path()).unwrap();
+        fjiffyldg.wait_scan();
+
+        fjiffyldg.restart_scan(12, UtfMode::Default).unwrap();
+        fjiffyldg.wait_scan();
+
+        assert_eq!(fjiffyldg.line_count(), 2);
+        assert_eq!(fjiffyldg.line_pos(0), 12);
+        assert_eq!(fjiffyldg.line_length(0), 8);
+        assert_eq!(fjiffyldg.line_pos(1), 22);
+    }
 }
 
 pub mod prelude {
-    pub use super::{Fjiffyldg, FjiffyldgError, Result, UtfMode};
     pub use super::encoding::TextEncoding;
+    pub use super::{Fjiffyldg, FjiffyldgError, Result, UtfMode};
 }

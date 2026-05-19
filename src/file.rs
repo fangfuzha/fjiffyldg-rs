@@ -1,4 +1,4 @@
-use crate::encoding::{convert_to_utf8, detect_encoding, TextEncoding};
+use crate::encoding::{detect_encoding, TextEncoding};
 use crate::error::{FjiffyldgError, Result, UtfMode};
 use crate::line_index::LineIndex;
 use memmap2::Mmap;
@@ -170,6 +170,12 @@ impl FileModel {
 
     fn load_file<P: AsRef<Path>>(&self, path: P, enable_scan: bool) -> Result<()> {
         let path = path.as_ref();
+        self.wait_scan_complete();
+        self.line_index.clear();
+        *self.data.write() = None;
+        *self.mmap.write() = None;
+        *self.file.write() = None;
+        *self.is_loaded.write() = false;
 
         let file = match File::open(path) {
             Ok(f) => f,
@@ -233,28 +239,67 @@ impl FileModel {
 
     /// 后台扫描行结构
     fn scan_lines_background(&self) {
+        self.scan_lines_background_from(0, None);
+    }
+
+    /// 从指定偏移开始后台扫描行结构
+    fn scan_lines_background_from(&self, offset: u64, forced_utf_mode: Option<UtfMode>) {
         let scanning = Arc::clone(&self.scanning);
         let line_index = Arc::clone(&self.line_index);
         let data = self.get_raw_data();
+        let file_utf_mode = Self::detect_utf_mode(&data);
+        let scan_data = data.get(offset as usize..).unwrap_or_default().to_vec();
+        let current_utf_mode = self.get_utf_mode();
 
         scanning.store(true, Ordering::Release);
 
         rayon::spawn(move || {
-            let encoding = detect_encoding(&data);
-            let effective_data = match &encoding {
-                TextEncoding::Utf16Le | TextEncoding::Utf16Be => {
-                    if let Ok(converted) = convert_to_utf8(&data, &encoding) {
-                        converted
+            let utf_mode = forced_utf_mode
+                .filter(|mode| *mode != UtfMode::Default)
+                .or_else(|| {
+                    if current_utf_mode != UtfMode::Default {
+                        Some(current_utf_mode)
                     } else {
-                        data.clone()
+                        Some(file_utf_mode)
                     }
-                }
-                _ => data.clone(),
-            };
+                })
+                .unwrap_or(UtfMode::Default);
 
-            line_index.build_from_data(&effective_data, UtfMode::Default);
+            line_index.build_from_data_at(&scan_data, offset, utf_mode);
             scanning.store(false, Ordering::Release);
         });
+    }
+
+    /// 根据 BOM 检测行扫描使用的 UTF 模式
+    fn detect_utf_mode(data: &[u8]) -> UtfMode {
+        match detect_encoding(data) {
+            TextEncoding::Utf16Le => UtfMode::Utf16Le,
+            TextEncoding::Utf16Be => UtfMode::Utf16Be,
+            TextEncoding::Utf32Le => UtfMode::Utf32Le,
+            TextEncoding::Utf32Be => UtfMode::Utf32Be,
+            TextEncoding::Ascii | TextEncoding::Utf8 | TextEncoding::Unknown => UtfMode::Default,
+        }
+    }
+
+    /// 重新扫描已加载文件的行结构
+    pub fn restart_scan(&self, offset: u64, utf_mode: UtfMode) -> Result<()> {
+        if !self.is_loaded() {
+            *self.error_code.write() = FjiffyldgError::FileNotLoaded.to_error_code();
+            return Err(FjiffyldgError::FileNotLoaded);
+        }
+
+        let file_size = *self.file_size.read();
+        if offset > file_size {
+            *self.error_code.write() = FjiffyldgError::InvalidOffset.to_error_code();
+            return Err(FjiffyldgError::InvalidOffset);
+        }
+
+        self.wait_scan_complete();
+        self.line_index.clear();
+        self.set_utf_mode(utf_mode);
+        self.scan_lines_background_from(offset, Some(utf_mode));
+        *self.error_code.write() = 0;
+        Ok(())
     }
 
     /// 等待行扫描完成
@@ -324,7 +369,7 @@ impl FileModel {
     /// - `index`：行索引（0-based）
     /// - `bpos`：输出参数，返回行起始位置
     /// - `epos`：输出参数，返回行结束位置
-    /// - `len`：最大读取长度。若为0，返回整行
+    /// - `len`：输入最大读取长度，输出实际读取长度；若为 0，最多读取 4KB
     ///
     /// # 返回值
     /// 行数据，若失败返回None
@@ -359,7 +404,7 @@ impl FileModel {
         };
 
         let actual_len = if *len == 0 {
-            full_len
+            full_len.min(CRITICAL_LONGLINE_LEN)
         } else {
             (*len).min(full_len)
         };
@@ -370,6 +415,73 @@ impl FileModel {
             None
         } else {
             self.read_data(*bpos, actual_len)
+        }
+    }
+
+    /// 按 C++ `ReadFileDataLLineCut` 语义读取一段行数据
+    ///
+    /// 从 `index` 指向的行起始位置开始读取。短行会按行边界批量读取，`len`
+    /// 用作批量预算而不是硬上限；如果遇到超过 4KB 的长行，则在 4KB 处截断。
+    /// 返回时 `index` 会推进到最后一个完整纳入读取范围的行。
+    pub fn read_line_cut(
+        &self,
+        index: &mut i64,
+        bpos: &mut i64,
+        epos: &mut i64,
+        len: &mut usize,
+    ) -> Option<Vec<u8>> {
+        if *index < 0 {
+            *len = 0;
+            return None;
+        }
+
+        let begin = self.line_index.get_line_pos(*index as usize);
+        if begin < 0 {
+            *len = 0;
+            return None;
+        }
+
+        *bpos = begin;
+
+        let mut length = if *len == 0 { BUFFER_SIZE } else { *len };
+        length = length.min(usize::MAX - 1 - CRITICAL_LONGLINE_LEN);
+
+        let mut cur_pos = begin;
+        let mut next_pos = self.line_index.get_line_pos((*index + 1) as usize);
+
+        while next_pos > 0
+            && (next_pos - begin) as usize <= length
+            && (next_pos - cur_pos) as usize <= CRITICAL_LONGLINE_LEN
+        {
+            *index += 1;
+            cur_pos = next_pos;
+            next_pos = self.line_index.get_line_pos((*index + 1) as usize);
+        }
+
+        if next_pos < 0 {
+            let file_size = *self.file_size.read() as i64;
+            if file_size - cur_pos <= CRITICAL_LONGLINE_LEN as i64 {
+                next_pos = file_size;
+            }
+        }
+
+        if next_pos < 0 || next_pos - cur_pos > CRITICAL_LONGLINE_LEN as i64 {
+            next_pos = cur_pos + CRITICAL_LONGLINE_LEN as i64;
+        }
+
+        let actual_len = if next_pos > begin {
+            (next_pos - begin) as usize
+        } else {
+            0
+        };
+
+        *epos = next_pos;
+        *len = actual_len;
+
+        if actual_len == 0 {
+            None
+        } else {
+            self.read_data(begin, actual_len)
         }
     }
 
@@ -428,6 +540,7 @@ impl FileModel {
 
     /// 清空所有数据
     pub fn clear(&self) {
+        self.wait_scan_complete();
         *self.data.write() = None;
         *self.mmap.write() = None;
         *self.file.write() = None;

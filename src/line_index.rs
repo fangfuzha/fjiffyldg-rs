@@ -17,7 +17,7 @@ const DIRECT_LINES_MAX: usize = 1_000_000;
 #[allow(dead_code)]
 const CHUNK_SIZE: u64 = 128 * 1024;
 #[allow(dead_code)]
-const CHUNK_COUNT_MAX: usize = 8192;
+const CHUNK_COUNT_MAX: usize = 8_388_608;
 #[allow(dead_code)]
 const KB: u64 = 1024;
 #[allow(dead_code)]
@@ -34,6 +34,8 @@ pub struct LineIndex {
     direct_offsets: RwLock<Vec<u32>>,
     /// 扩展索引（行起始位置，u64，用于>4GB偏移）
     extended_offsets: RwLock<Vec<u64>>,
+    /// 每行内容长度（不含行尾符，单位为原始字节）
+    line_lengths: RwLock<Vec<u64>>,
     /// 分块索引（用于>1M行快速查询）
     chunks: RwLock<Vec<ChunkIndex>>,
     /// 文件是否已扫描完成
@@ -54,6 +56,7 @@ impl LineIndex {
         Self {
             direct_offsets: RwLock::new(Vec::new()),
             extended_offsets: RwLock::new(Vec::new()),
+            line_lengths: RwLock::new(Vec::new()),
             chunks: RwLock::new(Vec::new()),
             is_scanned: AtomicBool::new(false),
             total_lines: RwLock::new(0),
@@ -84,36 +87,37 @@ impl LineIndex {
 
     /// 从数据建立行索引
     pub fn build_from_data(&self, data: &[u8], _utf_mode: UtfMode) {
+        self.build_from_data_at(data, 0, _utf_mode);
+    }
+
+    /// 从指定文件偏移处的数据建立行索引
+    pub fn build_from_data_at(&self, data: &[u8], base_offset: u64, utf_mode: UtfMode) {
+        self.clear();
+
         if data.is_empty() {
             self.mark_scanned();
             return;
         }
 
-        // 第0行总是从位置0开始
-        self.add_line(0);
+        self.add_line(base_offset);
 
-        let line_ends = self.find_line_ends(data);
+        let mut line_start = 0usize;
+        let mut scan_pos = 0usize;
 
-        for &pos in &line_ends {
-            // 下一行从\n之后开始
-            self.add_line((pos + 1) as u64);
+        while scan_pos < data.len() {
+            if let Some(newline_len) = Self::newline_len_at(data, scan_pos, utf_mode) {
+                self.add_line_length((scan_pos - line_start) as u64);
+                scan_pos += newline_len;
+                line_start = scan_pos;
+                self.add_line(base_offset + line_start as u64);
+            } else {
+                scan_pos += Self::scan_step(data, scan_pos, utf_mode);
+            }
         }
 
-        // 处理最后一行（如果文件末尾没有\n）
-        let last_line_start = if !line_ends.is_empty() {
-            line_ends[line_ends.len() - 1] + 1
-        } else {
-            0
-        };
+        self.add_line_length((data.len() - line_start) as u64);
 
-        if last_line_start < data.len() {
-            // 有一个未以\n结尾的最后一行
-            self.add_line(data.len() as u64);
-        }
-
-        // 更新总行数
-        let total = 1 + line_ends.len();
-        *self.total_lines.write() = total as u64;
+        *self.total_lines.write() = self.line_lengths.read().len() as u64;
 
         self.mark_scanned();
     }
@@ -126,35 +130,7 @@ impl LineIndex {
             return -1;
         }
 
-        let dir_offs = self.direct_offsets.read();
-        let ext_offs = self.extended_offsets.read();
-
-        let current_pos = if index < dir_offs.len() {
-            dir_offs[index] as u64
-        } else {
-            ext_offs[index - dir_offs.len()]
-        };
-
-        // 最后一行长度为0
-        if index + 1 >= total_lines {
-            return 0;
-        }
-
-        let next_pos = if index + 1 < dir_offs.len() {
-            dir_offs[index + 1] as u64
-        } else {
-            ext_offs[index + 1 - dir_offs.len()]
-        };
-
-        // 长度 = 下一行起始 - 当前行起始 - 1（减去\n或\r\n）
-        let len = next_pos.saturating_sub(current_pos);
-        if len > 0 {
-            // 减去换行符（\n或\r\n）
-            // 这里假设至少有一个换行符
-            (len - 1) as i64
-        } else {
-            0
-        }
+        self.line_lengths.read()[index] as i64
     }
 
     /// 获取指定行的起始字节位置
@@ -245,6 +221,7 @@ impl LineIndex {
     pub fn clear(&self) {
         self.direct_offsets.write().clear();
         self.extended_offsets.write().clear();
+        self.line_lengths.write().clear();
         self.chunks.write().clear();
         *self.total_lines.write() = 0;
         *self.overstep_pos.write() = 0;
@@ -269,39 +246,80 @@ impl LineIndex {
         } else {
             drop(dir_offs);
             let mut ext_offs = self.extended_offsets.write();
+            ext_offs.push(pos);
+        }
+    }
 
-            if pos > u32::MAX as u64 {
-                ext_offs.push(pos);
+    /// 添加一行的内容长度
+    fn add_line_length(&self, len: u64) {
+        self.line_lengths.write().push(len);
+    }
+
+    /// 获取当前编码模式下的扫描步长
+    fn scan_step(data: &[u8], pos: usize, utf_mode: UtfMode) -> usize {
+        let width = match utf_mode {
+            UtfMode::Utf16Le | UtfMode::Utf16Be => 2,
+            UtfMode::Utf32Le | UtfMode::Utf32Be => 4,
+            UtfMode::Default => 1,
+        };
+
+        width.min(data.len() - pos)
+    }
+
+    /// 判断当前位置是否为换行符并返回行尾字节数
+    fn newline_len_at(data: &[u8], pos: usize, utf_mode: UtfMode) -> Option<usize> {
+        match utf_mode {
+            UtfMode::Default => Self::newline_len_u8(data, pos),
+            UtfMode::Utf16Le => Self::newline_len_fixed(data, pos, 2, &[b'\r', 0], &[b'\n', 0]),
+            UtfMode::Utf16Be => Self::newline_len_fixed(data, pos, 2, &[0, b'\r'], &[0, b'\n']),
+            UtfMode::Utf32Le => {
+                Self::newline_len_fixed(data, pos, 4, &[b'\r', 0, 0, 0], &[b'\n', 0, 0, 0])
+            }
+            UtfMode::Utf32Be => {
+                Self::newline_len_fixed(data, pos, 4, &[0, 0, 0, b'\r'], &[0, 0, 0, b'\n'])
             }
         }
     }
 
-    /// 扫描文件找出所有行尾位置
-    fn find_line_ends(&self, data: &[u8]) -> Vec<usize> {
-        let mut line_ends = Vec::new();
-        let mut pos = 0;
-
-        while pos < data.len() {
-            match data[pos] {
-                b'\n' => {
-                    line_ends.push(pos);
-                    pos += 1;
-                }
-                b'\r' => {
-                    line_ends.push(pos);
-                    pos += 1;
-                    // 处理CRLF
-                    if pos < data.len() && data[pos] == b'\n' {
-                        pos += 1;
-                    }
-                }
-                _ => {
-                    pos += 1;
+    /// 判断当前位置是否为单字节换行符
+    fn newline_len_u8(data: &[u8], pos: usize) -> Option<usize> {
+        match data[pos] {
+            b'\n' => Some(1),
+            b'\r' => {
+                if data.get(pos + 1) == Some(&b'\n') {
+                    Some(2)
+                } else {
+                    Some(1)
                 }
             }
+            _ => None,
+        }
+    }
+
+    /// 判断当前位置是否为定宽编码的换行符
+    fn newline_len_fixed(
+        data: &[u8],
+        pos: usize,
+        width: usize,
+        cr: &[u8],
+        lf: &[u8],
+    ) -> Option<usize> {
+        let unit = data.get(pos..pos + width)?;
+
+        if unit == lf {
+            return Some(width);
         }
 
-        line_ends
+        if unit == cr {
+            let next = data.get(pos + width..pos + width * 2);
+            if next == Some(lf) {
+                Some(width * 2)
+            } else {
+                Some(width)
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -353,5 +371,76 @@ mod tests {
         assert_eq!(index.get_line_length(0), 6);
         assert_eq!(index.get_line_length(1), 6);
         assert_eq!(index.get_line_length(2), 0);
+    }
+
+    #[test]
+    fn test_crlf_line_positions_and_lengths() {
+        let index = LineIndex::new();
+        let data = b"line1\r\nline2\r\n";
+
+        index.build_from_data(data, UtfMode::Default);
+
+        assert_eq!(index.get_line_count(), 3);
+        assert_eq!(index.get_line_pos(0), 0);
+        assert_eq!(index.get_line_pos(1), 7);
+        assert_eq!(index.get_line_pos(2), 14);
+        assert_eq!(index.get_line_length(0), 5);
+        assert_eq!(index.get_line_length(1), 5);
+        assert_eq!(index.get_line_length(2), 0);
+    }
+
+    #[test]
+    fn test_unterminated_last_line_length() {
+        let index = LineIndex::new();
+        let data = b"first\nsecond";
+
+        index.build_from_data(data, UtfMode::Default);
+
+        assert_eq!(index.get_line_count(), 2);
+        assert_eq!(index.get_line_pos(0), 0);
+        assert_eq!(index.get_line_pos(1), 6);
+        assert_eq!(index.get_line_length(0), 5);
+        assert_eq!(index.get_line_length(1), 6);
+    }
+
+    #[test]
+    fn test_utf16le_line_positions_use_original_byte_offsets() {
+        let index = LineIndex::new();
+        let data = [b'a', 0, b'\r', 0, b'\n', 0, b'b', 0];
+
+        index.build_from_data(&data, UtfMode::Utf16Le);
+
+        assert_eq!(index.get_line_count(), 2);
+        assert_eq!(index.get_line_pos(0), 0);
+        assert_eq!(index.get_line_pos(1), 6);
+        assert_eq!(index.get_line_length(0), 2);
+        assert_eq!(index.get_line_length(1), 2);
+    }
+
+    #[test]
+    fn test_positions_after_direct_index_limit_are_preserved() {
+        let index = LineIndex::new();
+        let line_count = DIRECT_LINES_MAX + 2;
+        let mut data = Vec::with_capacity(line_count * 2);
+
+        for _ in 0..line_count {
+            data.extend_from_slice(b"x\n");
+        }
+
+        index.build_from_data(&data, UtfMode::Default);
+
+        assert_eq!(index.get_line_count(), (line_count + 1) as i64);
+        assert_eq!(
+            index.get_line_pos(DIRECT_LINES_MAX),
+            (DIRECT_LINES_MAX * 2) as i64
+        );
+        assert_eq!(
+            index.get_line_pos(DIRECT_LINES_MAX + 1),
+            ((DIRECT_LINES_MAX + 1) * 2) as i64
+        );
+        assert_eq!(
+            index.get_line_by_pos(((DIRECT_LINES_MAX + 1) * 2) as i64),
+            (DIRECT_LINES_MAX + 1) as i64
+        );
     }
 }

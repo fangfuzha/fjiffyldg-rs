@@ -8,35 +8,35 @@ pub enum FjiffyldgError {
     /// 文件不存在或未加载
     #[error("File does not exist or was never loaded")]
     FileNotLoaded,
-    
+
     /// 文件内容或属性无法访问（权限、被占用等）
     #[error("File content or attributes inaccessible")]
     FileInaccessible,
-    
+
     /// 文件流读取错误（磁盘故障等）
     #[error("File stream error")]
     StreamError,
-    
+
     /// 内存映射失败
     #[error("Memory-mapped file error")]
     MmapError,
-    
+
     /// 无效的文件偏移量
     #[error("Invalid file offset")]
     InvalidOffset,
-    
+
     /// 无效的行索引
     #[error("Invalid line index")]
     InvalidLineIndex,
-    
+
     /// 缓冲区太小
     #[error("Buffer size too small")]
     BufferTooSmall,
-    
+
     /// 编码检测失败
     #[error("Encoding detection failed")]
     EncodingError,
-    
+
     /// 通用IO错误
     #[error("IO error")]
     IoError,

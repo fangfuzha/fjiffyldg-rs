@@ -1,4 +1,6 @@
-use encoding_rs::{UTF_16LE, UTF_16BE};
+//! 文本编码检测、校验与 UTF-8 转换工具。
+
+use encoding_rs::{UTF_16BE, UTF_16LE};
 
 /// 检查单个字节是否为ASCII字符
 #[inline]
@@ -27,10 +29,10 @@ pub fn check_text_ascii(text: &[u8]) -> usize {
         }
         return 0;
     }
-    
+
     let offset = (text.as_ptr() as usize) % 8;
     let mut pos = 0;
-    
+
     // 处理对齐前缀
     if offset != 0 {
         let aligned = 8 - offset;
@@ -42,14 +44,20 @@ pub fn check_text_ascii(text: &[u8]) -> usize {
         }
         pos = aligned;
     }
-    
+
     // SIMD优化：8字节块检查
     while pos + 8 <= text.len() {
         let chunk = u64::from_le_bytes([
-            text[pos], text[pos+1], text[pos+2], text[pos+3],
-            text[pos+4], text[pos+5], text[pos+6], text[pos+7]
+            text[pos],
+            text[pos + 1],
+            text[pos + 2],
+            text[pos + 3],
+            text[pos + 4],
+            text[pos + 5],
+            text[pos + 6],
+            text[pos + 7],
         ]);
-        
+
         if (chunk & 0x8080808080808080) != 0 {
             for i in pos..text.len() {
                 if (text[i] & 0x80) != 0 {
@@ -59,7 +67,7 @@ pub fn check_text_ascii(text: &[u8]) -> usize {
         }
         pos += 8;
     }
-    
+
     // 处理尾部字节
     while pos < text.len() {
         if (text[pos] & 0x80) != 0 {
@@ -67,7 +75,7 @@ pub fn check_text_ascii(text: &[u8]) -> usize {
         }
         pos += 1;
     }
-    
+
     0
 }
 
@@ -98,7 +106,7 @@ pub fn check_utf8_char(text: &[u8], width: usize) -> bool {
     if text.len() < width {
         return false;
     }
-    
+
     for i in 1..width {
         if !is_valid_utf8_continuation(text[i]) {
             return false;
@@ -114,45 +122,53 @@ pub fn check_utf8_char(text: &[u8], width: usize) -> bool {
 /// - >0：第一个错误位置（从末尾开始）
 pub fn check_whole_text_utf8(text: &[u8]) -> usize {
     let mut pos = 0;
-    
+
     while pos < text.len() {
         let Some(width) = get_utf8_char_width(text[pos]) else {
             return text.len() - pos;
         };
-        
+
         if pos + width > text.len() {
             return text.len() - pos;
         }
-        
+
         if !check_utf8_char(&text[pos..], width) {
             return text.len() - pos;
         }
-        
+
         pos += width;
     }
-    
+
     0
 }
 
 /// 获取UTF-8文本的字符数（仅计算有效字符）
 pub fn get_utf8_char_count(text: &[u8]) -> usize {
+    get_utf8_char_count_with_offset(text).0
+}
+
+/// 获取UTF-8文本的有效字符数和已消费字节数
+///
+/// 返回 `(字符数, 已消费字节数)`。遇到非法或不完整 UTF-8 字节序列时停止，
+/// `已消费字节数` 指向第一个未处理字节，便于调用方继续处理或定位错误。
+pub fn get_utf8_char_count_with_offset(text: &[u8]) -> (usize, usize) {
     let mut count = 0;
     let mut pos = 0;
-    
+
     while pos < text.len() {
         let Some(width) = get_utf8_char_width(text[pos]) else {
             break;
         };
-        
+
         if pos + width > text.len() || !check_utf8_char(&text[pos..], width) {
             break;
         }
-        
+
         count += 1;
         pos += width;
     }
-    
-    count
+
+    (count, pos)
 }
 
 /// 抽取式UTF-8检查（适合中间数据片段）
@@ -167,14 +183,14 @@ pub fn check_extract_text_utf8(text: &[u8]) -> usize {
     if text.is_empty() {
         return 0;
     }
-    
+
     if text.len() < 10 {
         return check_whole_text_utf8(text);
     }
-    
+
     let mut start_offset = 0;
     let mut end_offset = 0;
-    
+
     // 跳过首字节可能不完整的字符
     if let Some(width) = get_utf8_char_width(text[0]) {
         if width > 1 && width <= text.len() {
@@ -188,13 +204,13 @@ pub fn check_extract_text_utf8(text: &[u8]) -> usize {
             start_offset = width;
         }
     }
-    
+
     // 跳过尾字节可能不完整的字符
     if let Some(width) = get_utf8_char_width(text[text.len() - 1]) {
         if width > 1 {
             let remaining = &text[..text.len().saturating_sub(width)];
             let last_char_start = remaining.len();
-            
+
             if last_char_start > 0 {
                 if let Some(last_width) = get_utf8_char_width(text[last_char_start]) {
                     if last_width >= width {
@@ -204,12 +220,12 @@ pub fn check_extract_text_utf8(text: &[u8]) -> usize {
             }
         }
     }
-    
+
     let check_len = text.len() - start_offset - end_offset;
     if check_len == 0 {
         return 0;
     }
-    
+
     let remaining = check_whole_text_utf8(&text[start_offset..start_offset + check_len]);
     if remaining > 0 {
         remaining + end_offset
@@ -229,6 +245,10 @@ pub enum TextEncoding {
     Utf16Le,
     /// UTF-16 大端
     Utf16Be,
+    /// UTF-32 小端
+    Utf32Le,
+    /// UTF-32 大端
+    Utf32Be,
     /// 未知编码
     Unknown,
 }
@@ -241,9 +261,19 @@ pub enum TextEncoding {
 /// - UTF-8（BOM: EF BB BF）
 /// - UTF-16LE（BOM: FF FE）
 /// - UTF-16BE（BOM: FE FF）
+/// - UTF-32LE（BOM: FF FE 00 00）
+/// - UTF-32BE（BOM: 00 00 FE FF）
 /// - ASCII（无非ASCII字节）
 pub fn detect_encoding(data: &[u8]) -> TextEncoding {
     // 检查BOM标记
+    if data.len() >= 4 {
+        if data[0..4] == [0xFF, 0xFE, 0x00, 0x00] {
+            return TextEncoding::Utf32Le;
+        }
+        if data[0..4] == [0x00, 0x00, 0xFE, 0xFF] {
+            return TextEncoding::Utf32Be;
+        }
+    }
     if data.len() >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
         return TextEncoding::Utf8;
     }
@@ -255,7 +285,7 @@ pub fn detect_encoding(data: &[u8]) -> TextEncoding {
             return TextEncoding::Utf16Be;
         }
     }
-    
+
     // 尝试UTF-8验证和ASCII检查
     // 先检查ASCII（ASCII是UTF-8的子集，所以要优先判断）
     if check_text_ascii(data) == 0 {
@@ -280,8 +310,39 @@ pub fn convert_to_utf8(data: &[u8], encoding: &TextEncoding) -> std::result::Res
             let (decoded, _, _) = UTF_16BE.decode(data);
             Ok(decoded.into_owned().into_bytes())
         }
+        TextEncoding::Utf32Le => convert_utf32_to_utf8(data, true),
+        TextEncoding::Utf32Be => convert_utf32_to_utf8(data, false),
         _ => Ok(data.to_vec()),
     }
+}
+
+/// 将 UTF-32 数据转换为 UTF-8 字节
+fn convert_utf32_to_utf8(data: &[u8], little_endian: bool) -> std::result::Result<Vec<u8>, ()> {
+    let mut output = String::new();
+    let mut chunks = data.chunks_exact(4);
+
+    for (index, chunk) in chunks.by_ref().enumerate() {
+        let value = if little_endian {
+            u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
+        } else {
+            u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
+        };
+
+        if index == 0 && value == 0xFEFF {
+            continue;
+        }
+
+        let Some(ch) = char::from_u32(value) else {
+            return Err(());
+        };
+        output.push(ch);
+    }
+
+    if !chunks.remainder().is_empty() {
+        return Err(());
+    }
+
+    Ok(output.into_bytes())
 }
 
 #[cfg(test)]
@@ -305,5 +366,39 @@ mod tests {
     fn test_utf8_char_count() {
         assert_eq!(get_utf8_char_count("hello".as_bytes()), 5);
         assert_eq!(get_utf8_char_count("你好世界".as_bytes()), 4);
+    }
+
+    #[test]
+    fn test_utf8_char_count_reports_consumed_bytes() {
+        assert_eq!(get_utf8_char_count_with_offset("a你b".as_bytes()), (3, 5));
+        assert_eq!(get_utf8_char_count_with_offset(b"ok\xfftail"), (2, 2));
+        assert_eq!(get_utf8_char_count_with_offset(&[0xE4, 0xBD]), (0, 0));
+    }
+
+    #[test]
+    fn test_utf32_bom_detection() {
+        assert_eq!(
+            detect_encoding(&[0xFF, 0xFE, 0x00, 0x00, b'a', 0, 0, 0]),
+            TextEncoding::Utf32Le
+        );
+        assert_eq!(
+            detect_encoding(&[0x00, 0x00, 0xFE, 0xFF, 0, 0, 0, b'a']),
+            TextEncoding::Utf32Be
+        );
+    }
+
+    #[test]
+    fn test_utf32_conversion_skips_bom() {
+        let utf32le = [0xFF, 0xFE, 0x00, 0x00, b'a', 0, 0, 0, b'\n', 0, 0, 0];
+        let utf32be = [0x00, 0x00, 0xFE, 0xFF, 0, 0, 0, b'a', 0, 0, 0, b'\n'];
+
+        assert_eq!(
+            convert_to_utf8(&utf32le, &TextEncoding::Utf32Le).unwrap(),
+            b"a\n"
+        );
+        assert_eq!(
+            convert_to_utf8(&utf32be, &TextEncoding::Utf32Be).unwrap(),
+            b"a\n"
+        );
     }
 }

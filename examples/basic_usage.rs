@@ -31,7 +31,10 @@ fn main() {
 
     println!("\n4. 读取指定位置数据:");
     if let Some(data) = fjiffyldg.read(0, 5) {
-        println!("   位置 0-5: {:?}", std::str::from_utf8(&data).unwrap_or("无效UTF-8"));
+        println!(
+            "   位置 0-5: {:?}",
+            std::str::from_utf8(&data).unwrap_or("无效UTF-8")
+        );
     }
 
     println!("\n5. 按行读取:");
@@ -39,7 +42,10 @@ fn main() {
     let mut epos = 0;
     let mut len = 100;
     if let Some(data) = fjiffyldg.read_line(0, &mut bpos, &mut epos, &mut len) {
-        println!("   行 0: {:?}", std::str::from_utf8(&data).unwrap_or("无效UTF-8"));
+        println!(
+            "   行 0: {:?}",
+            std::str::from_utf8(&data).unwrap_or("无效UTF-8")
+        );
     }
 
     println!("\n6. 查找位置所在行:");
@@ -51,7 +57,10 @@ fn main() {
     let is_ascii = fjiffyldg::check_text_ascii(sample) == 0;
     let is_utf8 = fjiffyldg::check_whole_text_utf8(sample) == 0;
     println!("   ASCII: {}, UTF-8: {}", is_ascii, is_utf8);
-    println!("   UTF-8 字符数: {}", fjiffyldg::get_utf8_char_count(sample));
+    println!(
+        "   UTF-8 字符数: {}",
+        fjiffyldg::get_utf8_char_count(sample)
+    );
 
     std::fs::remove_file(test_file).ok();
 
