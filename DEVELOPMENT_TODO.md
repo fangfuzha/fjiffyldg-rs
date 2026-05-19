@@ -257,6 +257,7 @@
 - **C++ 参考实现**：[reference/fjiffyldg/Fjiffyldg/](reference/fjiffyldg/Fjiffyldg/)
 - **Rust 源代码**：[src/](src/)
 - **测试文件**：[tests/](tests/)（如果存在）
+- **大文件基准**：[benches/large_file.rs](benches/large_file.rs)，运行 `cargo bench --bench large_file`
 
 ---
 
@@ -266,5 +267,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待与 C FFI 核心绑定）
+**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C FFI 核心绑定与 Criterion 大文件基准入口）
 **维护者**：开发团队

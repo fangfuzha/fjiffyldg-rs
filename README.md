@@ -60,7 +60,16 @@ fn main() -> fjiffyldg::Result<()> {
 | 行索引 | 自动构建行偏移表，O(log n) 查找 |
 | 编码检测 | UTF-8/UTF-16 自动识别 |
 | 文件操作 | 复制、保存、追加、连接 |
+| 基准验证 | 提供 Criterion 大文件加载、扫描、查询和读取基准 |
 | 零依赖 | 最小依赖，仅需 memmap2/encoding_rs |
+
+## 🧪 基准测试
+
+```bash
+cargo bench --bench large_file
+```
+
+基准会生成约 12MB 的临时文件，覆盖 mmap 加载扫描、随机行查询和随机读取路径。
 
 ## 📋 许可证
 
@@ -80,6 +89,7 @@ fjiffyldg-rs/
 │   ├── line_index.rs   # 行索引
 │   └── file.rs         # 文件操作
 ├── examples/           # 示例代码
+├── benches/            # Criterion 基准
 ├── Cargo.toml
 └── README.md
 ```
