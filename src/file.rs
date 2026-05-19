@@ -2,7 +2,7 @@ use crate::encoding::{detect_encoding, TextEncoding};
 use crate::error::{FjiffyldgError, Result, UtfMode};
 use crate::line_index::LineIndex;
 use memmap2::Mmap;
-use parking_lot::RwLock;
+use parking_lot::{Condvar, Mutex, RwLock};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;
@@ -20,6 +20,74 @@ const CRITICAL_LONGLINE_LEN: usize = 4 * KB;
 /// 大文件映射分块大小：1GB
 #[allow(dead_code)]
 const MMAP_CHUNK_SIZE: u64 = 1024 * MB as u64;
+
+/// 后台扫描状态与完成通知
+struct ScanState {
+    /// 后台扫描是否仍在进行
+    scanning: AtomicBool,
+    /// 条件变量配套互斥锁，防止完成通知丢失
+    lock: Mutex<()>,
+    /// 扫描完成通知
+    completed: Condvar,
+}
+
+impl ScanState {
+    /// 创建新的扫描状态
+    fn new() -> Self {
+        Self {
+            scanning: AtomicBool::new(false),
+            lock: Mutex::new(()),
+            completed: Condvar::new(),
+        }
+    }
+
+    /// 标记扫描开始
+    fn begin(&self) {
+        let _guard = self.lock.lock();
+        self.scanning.store(true, Ordering::Release);
+    }
+
+    /// 标记扫描完成并唤醒等待方
+    fn finish(&self) {
+        let _guard = self.lock.lock();
+        self.scanning.store(false, Ordering::Release);
+        self.completed.notify_all();
+    }
+
+    /// 检查扫描是否仍在进行
+    fn is_scanning(&self) -> bool {
+        self.scanning.load(Ordering::Acquire)
+    }
+
+    /// 等待扫描完成
+    fn wait_complete(&self) {
+        let mut guard = self.lock.lock();
+        while self.is_scanning() {
+            self.completed.wait(&mut guard);
+        }
+    }
+}
+
+/// 扫描任务完成守卫
+///
+/// 后台任务退出时自动发送完成通知，避免扫描过程中 panic 导致等待方永久阻塞。
+struct ScanCompletionGuard {
+    /// 需要通知的扫描状态
+    scan_state: Arc<ScanState>,
+}
+
+impl ScanCompletionGuard {
+    /// 创建新的扫描完成守卫
+    fn new(scan_state: Arc<ScanState>) -> Self {
+        Self { scan_state }
+    }
+}
+
+impl Drop for ScanCompletionGuard {
+    fn drop(&mut self) {
+        self.scan_state.finish();
+    }
+}
 
 /// 高性能文件模型
 ///
@@ -59,8 +127,8 @@ pub struct FileModel {
     error_code: RwLock<i32>,
     /// 文件加载完成标志
     is_loaded: RwLock<bool>,
-    /// 后台扫描进行中标志
-    scanning: Arc<AtomicBool>,
+    /// 后台扫描状态
+    scan_state: Arc<ScanState>,
 }
 
 impl FileModel {
@@ -76,7 +144,7 @@ impl FileModel {
             utf_mode: RwLock::new(UtfMode::Default),
             error_code: RwLock::new(0),
             is_loaded: RwLock::new(false),
-            scanning: Arc::new(AtomicBool::new(false)),
+            scan_state: Arc::new(ScanState::new()),
         }
     }
 
@@ -116,7 +184,7 @@ impl FileModel {
 
     /// 检查行扫描是否完成
     pub fn is_scanning(&self) -> bool {
-        self.scanning.load(Ordering::Acquire)
+        self.scan_state.is_scanning()
     }
 
     /// 获取文件大小（字节）
@@ -261,16 +329,17 @@ impl FileModel {
 
     /// 从指定偏移开始后台扫描行结构
     fn scan_lines_background_from(&self, offset: u64, forced_utf_mode: Option<UtfMode>) {
-        let scanning = Arc::clone(&self.scanning);
+        let scan_state = Arc::clone(&self.scan_state);
         let line_index = Arc::clone(&self.line_index);
         let data = self.get_raw_data();
         let file_utf_mode = Self::detect_utf_mode(&data);
         let scan_data = data.get(offset as usize..).unwrap_or_default().to_vec();
         let current_utf_mode = self.get_utf_mode();
 
-        scanning.store(true, Ordering::Release);
+        scan_state.begin();
 
         rayon::spawn(move || {
+            let _completion_guard = ScanCompletionGuard::new(scan_state);
             let utf_mode = forced_utf_mode
                 .filter(|mode| *mode != UtfMode::Default)
                 .or_else(|| {
@@ -283,7 +352,6 @@ impl FileModel {
                 .unwrap_or(UtfMode::Default);
 
             line_index.build_from_data_at(&scan_data, offset, utf_mode);
-            scanning.store(false, Ordering::Release);
         });
     }
 
@@ -323,9 +391,7 @@ impl FileModel {
     ///
     /// 如果后台扫描仍在进行，阻塞至完成。
     pub fn wait_scan_complete(&self) {
-        while self.is_scanning() {
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
+        self.scan_state.wait_complete();
     }
 
     /// 获取原始文件数据
@@ -571,6 +637,36 @@ impl FileModel {
 impl Default for FileModel {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    #[test]
+    fn test_scan_state_notifies_waiters_on_finish() {
+        let state = Arc::new(ScanState::new());
+        state.begin();
+
+        let (sender, receiver) = mpsc::channel();
+        for _ in 0..2 {
+            let waiter = Arc::clone(&state);
+            let sender = sender.clone();
+            std::thread::spawn(move || {
+                waiter.wait_complete();
+                sender.send(()).unwrap();
+            });
+        }
+        drop(sender);
+
+        state.finish();
+
+        receiver.recv_timeout(Duration::from_secs(1)).unwrap();
+        receiver.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(!state.is_scanning());
     }
 }
 
