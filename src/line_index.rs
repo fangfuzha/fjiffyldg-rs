@@ -14,6 +14,7 @@ struct ChunkIndex {
 
 /// 常数定义
 const DIRECT_LINES_MAX: usize = 1_000_000;
+const CHUNK_BEGIN: usize = DIRECT_LINES_MAX;
 #[allow(dead_code)]
 const CHUNK_SIZE: u64 = 128 * 1024;
 #[allow(dead_code)]
@@ -275,9 +276,47 @@ impl LineIndex {
                 ext_offs.push(pos);
             }
         } else {
+            let line_index = dir_offs.len() as u64 + self.extended_offsets.read().len() as u64;
             drop(dir_offs);
             let mut ext_offs = self.extended_offsets.write();
             ext_offs.push(pos);
+            drop(ext_offs);
+            self.update_chunk_index(line_index, pos, CHUNK_COUNT_MAX);
+        }
+    }
+
+    /// 根据新增的行起始位置更新第三层 chunk 索引。
+    fn update_chunk_index(&self, line_index: u64, pos: u64, max_chunks: usize) {
+        if line_index < CHUNK_BEGIN as u64 {
+            return;
+        }
+
+        let mut chunks = self.chunks.write();
+        if chunks.is_empty() {
+            chunks.push(ChunkIndex {
+                max_line_index: line_index,
+                start_pos: pos,
+            });
+            return;
+        }
+
+        if chunks.len() < max_chunks {
+            let last_chunk = chunks.last_mut().unwrap();
+            if pos.saturating_sub(last_chunk.start_pos) < CHUNK_SIZE {
+                last_chunk.max_line_index = line_index;
+            } else {
+                chunks.push(ChunkIndex {
+                    max_line_index: line_index,
+                    start_pos: pos,
+                });
+            }
+            return;
+        }
+
+        drop(chunks);
+        let mut overstep_pos = self.overstep_pos.write();
+        if *overstep_pos == 0 {
+            *overstep_pos = pos;
         }
     }
 
@@ -363,6 +402,20 @@ impl Default for LineIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl LineIndex {
+        fn chunk_count_for_tests(&self) -> usize {
+            self.chunks.read().len()
+        }
+
+        fn overstep_pos_for_tests(&self) -> u64 {
+            *self.overstep_pos.read()
+        }
+
+        fn add_chunk_for_tests(&self, line_index: u64, pos: u64, max_chunks: usize) {
+            self.update_chunk_index(line_index, pos, max_chunks);
+        }
+    }
 
     #[test]
     fn test_line_index_basic() {
@@ -515,6 +568,40 @@ mod tests {
             index.get_line_by_pos(((DIRECT_LINES_MAX + 1) * 2) as i64),
             (DIRECT_LINES_MAX + 1) as i64
         );
+    }
+
+    #[test]
+    fn test_chunk_index_is_populated_after_direct_limit() {
+        let index = LineIndex::new();
+        let line_count = DIRECT_LINES_MAX + 70_000;
+        let mut data = Vec::with_capacity(line_count * 2);
+
+        for _ in 0..line_count {
+            data.extend_from_slice(b"x\n");
+        }
+
+        index.build_from_data(&data, UtfMode::Default);
+
+        assert!(index.chunk_count_for_tests() > 0);
+        assert_eq!(
+            index.get_line_pos(DIRECT_LINES_MAX),
+            (DIRECT_LINES_MAX * 2) as i64
+        );
+        assert_eq!(
+            index.get_line_by_pos(((DIRECT_LINES_MAX + 65_536) * 2) as i64),
+            (DIRECT_LINES_MAX + 65_536) as i64
+        );
+    }
+
+    #[test]
+    fn test_overstep_position_records_first_chunk_overflow() {
+        let index = LineIndex::new();
+
+        index.add_chunk_for_tests(DIRECT_LINES_MAX as u64, 1_000, 1);
+        index.add_chunk_for_tests((DIRECT_LINES_MAX + 1) as u64, 1_000 + CHUNK_SIZE + 10, 1);
+
+        assert_eq!(index.chunk_count_for_tests(), 1);
+        assert_eq!(index.overstep_pos_for_tests(), 1_000 + CHUNK_SIZE + 10);
     }
 
     #[test]
