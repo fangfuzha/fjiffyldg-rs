@@ -43,15 +43,15 @@ fn main() {
     }
 
     println!("\n6. 查找位置所在行:");
-    let line = fjiffyldg.line_at_position(20);
+    let line = fjiffyldg.line_at_pos(20);
     println!("   位置 20 位于行: {}", line);
 
     println!("\n7. 编码检测:");
     let sample = "你好世界".as_bytes();
-    let is_ascii = fjiffyldg::check_ascii(sample) == 0;
-    let is_utf8 = fjiffyldg::check_utf8(sample) == 0;
+    let is_ascii = fjiffyldg::check_text_ascii(sample) == 0;
+    let is_utf8 = fjiffyldg::check_whole_text_utf8(sample) == 0;
     println!("   ASCII: {}, UTF-8: {}", is_ascii, is_utf8);
-    println!("   UTF-8 字符数: {}", fjiffyldg::utf8_char_count(sample));
+    println!("   UTF-8 字符数: {}", fjiffyldg::get_utf8_char_count(sample));
 
     std::fs::remove_file(test_file).ok();
 
