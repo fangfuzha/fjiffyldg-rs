@@ -48,7 +48,8 @@
 | `GetFileMappedHuge` internal pointer | Done | FFI returns a handle-owned real mmap pointer |
 | Large clone/save/append/concat paths | Done | Uses mmap or large buffered paths |
 | `FILEBLOCK` 1 MB stream block | Intentionally not reused | Rust keeps a simpler full small-file buffer design |
-| C++ header RAII wrapper | Done | Public header provides lightweight `Fjiffyldg::Fjiffyldg` |
+| C++ header RAII wrapper | Done | cbindgen configuration emits the lightweight `Fjiffyldg::Fjiffyldg` wrapper |
+| C API usage documentation | Done | Bilingual guides cover generation, build, link, lifetime, and maintenance flows |
 
 ## 4. Line Index System
 
@@ -92,7 +93,8 @@ The Rust version maps C-compatible error codes while also exposing richer Rust e
 - Shared scan buffers instead of full pre-scan cloning
 - Large file clone/save/append/concatenate I/O paths
 - C FFI smoke coverage
-- C and C++ header smoke compilation
+- cbindgen-generated C/C++ header smoke compilation
+- Bilingual C API usage documentation
 - `GetFileMappedHuge` real mmap pointer semantics
 - Windowed mmap reading and background scanning
 
@@ -106,6 +108,6 @@ The Rust version maps C-compatible error codes while also exposing richer Rust e
 
 ## 9. Conclusion
 
-The Rust version covers the common file loading, scanning, line positioning, encoding detection, and reading scenarios from the C++ reference implementation. Recent work also aligned C/C++ ABI packaging, `GetFileMappedHuge` mmap pointer behavior, windowed mmap scanning, and large-file helper paths.
+The Rust version covers the common file loading, scanning, line positioning, encoding detection, and reading scenarios from the C++ reference implementation. Recent work also aligned cbindgen-generated C/C++ ABI packaging, bilingual C API documentation, `GetFileMappedHuge` mmap pointer behavior, windowed mmap scanning, and large-file helper paths.
 
 Future work should focus on release validation: real huge-file benchmarks, broader C/C++ link-and-run integration tests, and quantified I/O performance comparison against the C++ implementation.

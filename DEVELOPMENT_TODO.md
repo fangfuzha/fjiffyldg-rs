@@ -241,21 +241,22 @@
 | 第三阶段 | 3      | 3      | 100%     |
 | 第四阶段 | 5      | 5      | 100%     |
 | 发布配套 | 3      | 3      | 100%     |
-| 文档配套 | 2      | 1      | 50%      |
-| **总计** | **20** | **19** | **95%**  |
+| 文档配套 | 3      | 2      | 67%      |
+| **总计** | **21** | **20** | **95%**  |
 
 ---
 
 ## 📦 发布配套任务
 
-### ✅ Task R.1: 补充 C 头文件与 C smoke 编译
+### ✅ Task R.1: 使用 cbindgen 生成 C 头文件与 C smoke 编译
 
-- **文件**：[include/fjiffyldg.h](include/fjiffyldg.h)、[tests/c_smoke.c](tests/c_smoke.c)、[scripts/check_c_abi.ps1](scripts/check_c_abi.ps1)
+- **文件**：[cbindgen.toml](cbindgen.toml)、[include/fjiffyldg.h](include/fjiffyldg.h)、[scripts/generate_c_header.ps1](scripts/generate_c_header.ps1)、[tests/c_smoke.c](tests/c_smoke.c)、[scripts/check_c_abi.ps1](scripts/check_c_abi.ps1)
+- **要求**：公共 C API 头文件必须由 `cbindgen` 从 Rust FFI 源码生成，不再手动编写；检查脚本需验证生成结果未过期
 - **状态**：✅ 已完成（2026-05-20）
 
 ### ✅ Task R.2: 补齐 C++ 参考头文件兼容层
 
-- **文件**：[include/fjiffyldg.h](include/fjiffyldg.h)、[tests/cpp_smoke.cpp](tests/cpp_smoke.cpp)、[scripts/check_c_abi.ps1](scripts/check_c_abi.ps1)
+- **文件**：[cbindgen.toml](cbindgen.toml)、[include/fjiffyldg.h](include/fjiffyldg.h)、[tests/cpp_smoke.cpp](tests/cpp_smoke.cpp)、[scripts/check_c_abi.ps1](scripts/check_c_abi.ps1)
 - **问题**：Rust 发布头文件此前缺少 `FJIFFYLDG_API`、`fjiffyldg_ptr` 与 C++ RAII 包装入口
 - **状态**：✅ 已完成（2026-05-20）
 
@@ -278,7 +279,13 @@
 - **要求**：所有项目文档都需要提供中文和英文两个版本，并在文档头部链接到另一个语言版本
 - **状态**：✅ 已完成（2026-05-20）
 
-### ⏳ Task D.2: 保持双语文档同步
+### ✅ Task D.2: 补充 C API 使用双语文档
+
+- **文件**：[docs/c_api_usage.md](docs/c_api_usage.md)、[docs/c_api_usage_en.md](docs/c_api_usage_en.md)
+- **要求**：详细说明 `cbindgen` 头文件生成、库构建、C/C++ 编译链接、句柄生命周期、加载扫描、读取、huge mmap、编码工具、错误码和维护流程
+- **状态**：✅ 已完成（2026-05-20）
+
+### ⏳ Task D.3: 保持双语文档同步
 
 - **要求**：后续新增或修改项目文档时，同一提交内同步更新对应语言版本
 - **状态**：⏳ 持续执行
@@ -301,7 +308,8 @@
 - **C++ 参考实现**：[reference/fjiffyldg/Fjiffyldg/](reference/fjiffyldg/Fjiffyldg/)
 - **Rust 源代码**：[src/](src/)
 - **测试文件**：[tests/](tests/)（包含 C ABI smoke 输入）
-- **C/C++ 头文件**：[include/fjiffyldg.h](include/fjiffyldg.h)，运行 `pwsh -File scripts/check_c_abi.ps1` 验证声明可编译
+- **C API 使用指南**：[docs/c_api_usage.md](docs/c_api_usage.md) / [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
+- **C/C++ 头文件**：[include/fjiffyldg.h](include/fjiffyldg.h)，由 [cbindgen.toml](cbindgen.toml) 和 [scripts/generate_c_header.ps1](scripts/generate_c_header.ps1) 生成，运行 `pwsh -File scripts/check_c_abi.ps1` 验证生成结果和声明可编译
 - **大文件基准**：[benches/large_file.rs](benches/large_file.rs)，运行 `cargo bench --bench large_file`
 
 ---
@@ -312,5 +320,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI 与头文件 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范）
+**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档）
 **维护者**：开发团队

@@ -68,9 +68,11 @@ fn main() -> fjiffyldg::Result<()> {
 
 ## 🧩 C ABI
 
-公共 C/C++ 头文件位于 `include/fjiffyldg.h`，提供 C 函数声明、`fjiffyldg_ptr` 句柄别名、导出宏和轻量 C++ RAII 包装。可用下面的命令验证头文件能被 C 与 C++ 编译器独立编译：
+公共 C/C++ 头文件位于 `include/fjiffyldg.h`，由 `cbindgen` 根据 Rust FFI 源码生成，提供 C 函数声明、`fjiffyldg_ptr` 句柄别名、导出宏和轻量 C++ RAII 包装。详细使用说明见 [docs/c_api_usage.md](docs/c_api_usage.md)。
 
 ```powershell
+cargo install cbindgen --locked
+pwsh -File scripts/generate_c_header.ps1
 pwsh -File scripts/check_c_abi.ps1
 ```
 
@@ -100,7 +102,7 @@ fjiffyldg-rs/
 │   ├── encoding.rs     # 编码检测
 │   ├── line_index.rs   # 行索引
 │   └── file.rs         # 文件操作
-├── include/            # C ABI 头文件
+├── include/            # cbindgen 生成的 C ABI 头文件
 ├── examples/           # 示例代码
 ├── benches/            # Criterion 基准
 ├── scripts/            # 发布与验证脚本

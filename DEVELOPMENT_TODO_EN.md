@@ -45,8 +45,8 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 
 | Task | Status | Notes |
 | ---- | ------ | ----- |
-| Add C header and C smoke compile | Done | [include/fjiffyldg.h](include/fjiffyldg.h), [tests/c_smoke.c](tests/c_smoke.c), [scripts/check_c_abi.ps1](scripts/check_c_abi.ps1) |
-| Add C++ reference-header compatibility layer | Done | `FJIFFYLDG_API`, `fjiffyldg_ptr`, and lightweight `Fjiffyldg::Fjiffyldg` wrapper |
+| Generate C header with cbindgen and keep C smoke compile | Done | [cbindgen.toml](cbindgen.toml), [include/fjiffyldg.h](include/fjiffyldg.h), [scripts/generate_c_header.ps1](scripts/generate_c_header.ps1), [tests/c_smoke.c](tests/c_smoke.c), [scripts/check_c_abi.ps1](scripts/check_c_abi.ps1) |
+| Add C++ reference-header compatibility layer | Done | `FJIFFYLDG_API`, `fjiffyldg_ptr`, and lightweight `Fjiffyldg::Fjiffyldg` wrapper are emitted through cbindgen configuration |
 | Match `GetFileMappedHuge` mmap pointer semantics | Done | FFI handle owns `Mmap`; `ClearHugeBuffer` releases it |
 
 ## Documentation Tasks
@@ -54,6 +54,7 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 | Task | Status | Notes |
 | ---- | ------ | ----- |
 | Add bilingual developer documentation | Done | Each project document has Chinese and English versions, with a language switch link at the top |
+| Add bilingual C API usage documentation | Done | Documents cbindgen header generation, build/link steps, handle lifetime, load/scan, reads, huge mmap, encoding helpers, error codes, and maintenance flow |
 | Keep bilingual documents synchronized | Ongoing | Future documentation edits should update both language versions in the same change |
 
 ## Progress
@@ -65,7 +66,7 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 | Phase 3 | 3 | 3 | 100% |
 | Phase 4 | 5 | 5 | 100% |
 | Release support | 3 | 3 | 100% |
-| Documentation | 2 | 1 | 50% |
+| Documentation | 3 | 2 | 67% |
 
 ## Remaining Work
 
@@ -76,6 +77,7 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 ## References
 
 - Coverage report: [docs/功能覆盖深度检查报告.md](docs/功能覆盖深度检查报告.md) / [docs/feature_coverage_depth_report.md](docs/feature_coverage_depth_report.md)
+- C API usage guide: [docs/c_api_usage.md](docs/c_api_usage.md) / [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
 - C++ reference implementation: [reference/fjiffyldg/Fjiffyldg/](reference/fjiffyldg/Fjiffyldg/)
 - Rust source: [src/](src/)
 - C/C++ header: [include/fjiffyldg.h](include/fjiffyldg.h)

@@ -22,7 +22,6 @@ use std::path::PathBuf;
 use std::ptr;
 
 /// C ABI 使用的不透明文件处理句柄。
-#[repr(C)]
 pub struct fjiffyldg_t {
     /// Rust 高层文件处理实例
     model: Fjiffyldg,
@@ -386,7 +385,7 @@ pub extern "C" fn ReadFileDataEndOfLine(
     })
 }
 
-/// 获取整个文件的映射数据副本。
+/// 获取由句柄持有的整个文件 mmap 指针。
 #[no_mangle]
 pub extern "C" fn GetFileMappedHuge(
     fm: fjiffyldg_ptr,
