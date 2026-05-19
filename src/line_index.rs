@@ -249,6 +249,15 @@ impl LineIndex {
             return (0, total_offsets);
         }
 
+        let overstep_pos = *self.overstep_pos.read();
+        if overstep_pos != 0 && pos >= overstep_pos {
+            let left = chunks
+                .last()
+                .map(|chunk| chunk.max_line_index as usize + 1)
+                .unwrap_or(CHUNK_BEGIN);
+            return (left.min(total_offsets), total_offsets);
+        }
+
         let chunk_partition = chunks.partition_point(|chunk| chunk.start_pos <= pos);
         if chunk_partition == 0 {
             return (
@@ -657,6 +666,29 @@ mod tests {
 
         assert_eq!(index.chunk_count_for_tests(), 1);
         assert_eq!(index.overstep_pos_for_tests(), 1_000 + CHUNK_SIZE + 10);
+    }
+
+    #[test]
+    fn test_overstep_position_narrows_search_after_last_chunk() {
+        let index = LineIndex::new();
+        index.direct_offsets.write().resize(DIRECT_LINES_MAX, 0);
+        index.extended_offsets.write().extend_from_slice(&[
+            1_000,
+            1_000 + CHUNK_SIZE + 10,
+            1_000 + CHUNK_SIZE + 20,
+        ]);
+
+        index.add_chunk_for_tests(DIRECT_LINES_MAX as u64, 1_000, 1);
+        index.add_chunk_for_tests((DIRECT_LINES_MAX + 1) as u64, 1_000 + CHUNK_SIZE + 10, 1);
+
+        let (left, right) = index.search_bounds_by_pos_for_tests(1_000 + CHUNK_SIZE + 20);
+
+        assert_eq!(left, DIRECT_LINES_MAX + 1);
+        assert_eq!(right, DIRECT_LINES_MAX + 3);
+        assert_eq!(
+            index.get_line_by_pos((1_000 + CHUNK_SIZE + 20) as i64),
+            (DIRECT_LINES_MAX + 2) as i64
+        );
     }
 
     #[test]
