@@ -13,7 +13,9 @@ use crate::encoding::{
 use crate::error::{FjiffyldgError, UtfMode};
 use crate::file::{append_file, clone_file, concatenate_files, get_file_size, save_file};
 use crate::Fjiffyldg;
+use memmap2::{Mmap, MmapOptions};
 use std::ffi::CStr;
+use std::fs::File;
 use std::os::raw::{c_char, c_int, c_longlong, c_uint};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
@@ -26,8 +28,8 @@ pub struct fjiffyldg_t {
     model: Fjiffyldg,
     /// 最近一次读取返回给 C 调用方的缓冲区
     read_buffer: Vec<u8>,
-    /// 最近一次 huge mapping 返回给 C 调用方的缓冲区
-    huge_buffer: Vec<u8>,
+    /// 最近一次 huge mapping 返回给 C 调用方的真实 mmap 资源
+    huge_mmap: Option<Mmap>,
 }
 
 /// C ABI 句柄指针类型。
@@ -39,7 +41,7 @@ impl fjiffyldg_t {
         Self {
             model: Fjiffyldg::new(),
             read_buffer: Vec::new(),
-            huge_buffer: Vec::new(),
+            huge_mmap: None,
         }
     }
 
@@ -409,16 +411,43 @@ pub extern "C" fn GetFileMappedHuge(
             }
         };
 
-        match handle.model.handle().get_huge_buffer(path) {
-            Ok(data) => {
-                handle.huge_buffer = data;
+        let file = match File::open(path) {
+            Ok(file) => file,
+            Err(_) => {
                 unsafe {
-                    *bufferSize =
-                        handle.huge_buffer.len().min(c_longlong::MAX as usize) as c_longlong;
+                    *bufferSize = 0;
                 }
-                handle.huge_buffer.as_ptr().cast::<c_char>()
+                return ptr::null();
+            }
+        };
+        let file_size = match file.metadata() {
+            Ok(metadata) => metadata.len(),
+            Err(_) => {
+                unsafe {
+                    *bufferSize = 0;
+                }
+                return ptr::null();
+            }
+        };
+        if file_size == 0 {
+            handle.huge_mmap = None;
+            unsafe {
+                *bufferSize = 0;
+            }
+            return ptr::null();
+        }
+
+        match unsafe { MmapOptions::new().map(&file) } {
+            Ok(mmap) => {
+                unsafe {
+                    *bufferSize = mmap.len().min(c_longlong::MAX as usize) as c_longlong;
+                }
+                let ptr = mmap.as_ptr().cast::<c_char>();
+                handle.huge_mmap = Some(mmap);
+                ptr
             }
             Err(_) => {
+                handle.huge_mmap = None;
                 unsafe {
                     *bufferSize = 0;
                 }
@@ -428,12 +457,12 @@ pub extern "C" fn GetFileMappedHuge(
     })
 }
 
-/// 清理 huge buffer 内部缓冲区。
+/// 清理 huge mmap 内部映射资源。
 #[no_mangle]
 pub extern "C" fn ClearHugeBuffer(fm: fjiffyldg_ptr) {
     ffi_guard((), || {
         if let Some(handle) = handle_mut(fm) {
-            handle.huge_buffer.clear();
+            handle.huge_mmap = None;
         }
     })
 }
@@ -597,4 +626,36 @@ pub extern "C" fn ToConcatenateFile(
 
         result_code(concatenate_files([append_path], cat_path))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CString;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn get_file_mapped_huge_retains_mmap_until_clear() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"hello mmap").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+        let fm = fjiffyldg_create();
+        let mut size = 0;
+
+        let ptr = GetFileMappedHuge(fm, path.as_ptr(), &mut size);
+
+        assert!(!ptr.is_null());
+        assert_eq!(size, 10);
+        assert_eq!(
+            unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), 5) },
+            b"hello"
+        );
+        assert!(unsafe { (*fm).huge_mmap.is_some() });
+
+        ClearHugeBuffer(fm);
+
+        assert!(unsafe { (*fm).huge_mmap.is_none() });
+        fjiffyldg_clear(fm);
+    }
 }

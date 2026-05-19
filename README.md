@@ -58,15 +58,15 @@ fn main() -> fjiffyldg::Result<()> {
 | -------- | ----------------------------------------------- |
 | 文件加载 | 按需加载，支持内存映射                          |
 | 行索引   | 自动构建行偏移表，O(log n) 查找                 |
-| 编码检测 | UTF-8/UTF-16 自动识别                           |
-| 文件操作 | 复制、保存、追加、连接                          |
-| C ABI    | 提供 C 头文件与 smoke 编译检查                  |
-| 基准验证 | 提供 Criterion 大文件加载、扫描、查询和读取基准 |
-| 零依赖   | 最小依赖，仅需 memmap2/encoding_rs              |
+| 编码检测  | UTF-8/UTF-16 自动识别                           |
+| 文件操作  | 复制、保存、追加、连接                          |
+| C/C++ ABI | 提供 C/C++ 头文件与 smoke 编译检查              |
+| 基准验证  | 提供 Criterion 大文件加载、扫描、查询和读取基准 |
+| 零依赖    | 最小依赖，仅需 memmap2/encoding_rs              |
 
 ## 🧩 C ABI
 
-公共 C 头文件位于 `include/fjiffyldg.h`。可用下面的命令验证头文件能被 C 编译器独立编译：
+公共 C/C++ 头文件位于 `include/fjiffyldg.h`，提供 C 函数声明、`fjiffyldg_ptr` 句柄别名、导出宏和轻量 C++ RAII 包装。可用下面的命令验证头文件能被 C 与 C++ 编译器独立编译：
 
 ```powershell
 pwsh -File scripts/check_c_abi.ps1

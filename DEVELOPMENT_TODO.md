@@ -238,7 +238,32 @@
 | 第二阶段 | 4      | 4      | 100%     |
 | 第三阶段 | 3      | 3      | 100%     |
 | 第四阶段 | 5      | 5      | 100%     |
-| **总计** | **15** | **15** | **100%** |
+| 发布配套 | 3      | 3      | 100%     |
+| **总计** | **18** | **18** | **100%** |
+
+---
+
+## 📦 发布配套任务
+
+### ✅ Task R.1: 补充 C 头文件与 C smoke 编译
+
+- **文件**：[include/fjiffyldg.h](include/fjiffyldg.h)、[tests/c_smoke.c](tests/c_smoke.c)、[scripts/check_c_abi.ps1](scripts/check_c_abi.ps1)
+- **状态**：✅ 已完成（2026-05-20）
+
+### ✅ Task R.2: 补齐 C++ 参考头文件兼容层
+
+- **文件**：[include/fjiffyldg.h](include/fjiffyldg.h)、[tests/cpp_smoke.cpp](tests/cpp_smoke.cpp)、[scripts/check_c_abi.ps1](scripts/check_c_abi.ps1)
+- **问题**：Rust 发布头文件此前缺少 `FJIFFYLDG_API`、`fjiffyldg_ptr` 与 C++ RAII 包装入口
+- **状态**：✅ 已完成（2026-05-20）
+
+### ✅ Task R.3: `GetFileMappedHuge` 真实 mmap 指针语义
+
+- **文件**：[src/ffi.rs](src/ffi.rs)
+- **问题**：Rust FFI 曾返回内部 `Vec<u8>` 拷贝，C++ 参考实现返回由句柄持有的真实文件映射指针
+- **影响**：超大文件场景下会产生额外内存拷贝，语义未完全覆盖
+- **修复方案**：在 FFI 句柄中持有 `Mmap` 资源，`GetFileMappedHuge` 返回映射指针，`ClearHugeBuffer` 释放映射；Rust 高层 `get_huge_buffer()` 保留安全拷贝 API
+- **测试**：已添加 `get_file_mapped_huge_retains_mmap_until_clear`
+- **状态**：✅ 已完成（2026-05-20）
 
 ---
 
@@ -257,7 +282,7 @@
 - **C++ 参考实现**：[reference/fjiffyldg/Fjiffyldg/](reference/fjiffyldg/Fjiffyldg/)
 - **Rust 源代码**：[src/](src/)
 - **测试文件**：[tests/](tests/)（包含 C ABI smoke 输入）
-- **C 头文件**：[include/fjiffyldg.h](include/fjiffyldg.h)，运行 `pwsh -File scripts/check_c_abi.ps1` 验证声明可编译
+- **C/C++ 头文件**：[include/fjiffyldg.h](include/fjiffyldg.h)，运行 `pwsh -File scripts/check_c_abi.ps1` 验证声明可编译
 - **大文件基准**：[benches/large_file.rs](benches/large_file.rs)，运行 `cargo bench --bench large_file`
 
 ---
