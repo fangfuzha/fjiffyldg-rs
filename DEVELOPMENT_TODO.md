@@ -132,17 +132,14 @@
 
 ## 🔧 第三阶段：完整性增强（优先级：中）
 
-### ⏳ Task 3.1: 添加 C FFI 绑定
+### ✅ Task 3.1: 添加 C FFI 绑定
 
 - **文件**：[src/lib.rs](src/lib.rs)、建议新增 `src/ffi.rs`
 - **问题**：Rust 当前只有原生 API，没有 `extern "C"` 导出函数
 - **影响**：无法覆盖 C++ 版本面向 C ABI 的调用方式
-- **修复方案**：
-  - 在 `Cargo.toml` 配置 `crate-type = ["cdylib", "rlib"]`
-  - 新增 opaque handle API：create/free/load/read/line_count/error_code
-  - 明确所有 FFI 边界的空指针、长度与错误码语义
-- **测试**：添加 FFI smoke test 或 C ABI 集成测试
-- **状态**：⏳ 待开始
+- **修复方案**：新增 `src/ffi.rs`，导出 opaque handle API、加载/扫描/等待/行查询/读取、编码检查与基础文件操作 C ABI；保留 `crate-type = ["lib", "cdylib", "staticlib"]`
+- **测试**：已添加 `test_c_ffi_smoke_load_scan_query_and_read`
+- **状态**：✅ 已完成（2026-05-19；后续可补真实 C 集成测试与发布用头文件）
 
 ---
 
@@ -238,9 +235,9 @@
 | -------- | ------ | ------------------------ | ------------------ |
 | 第一阶段 | 3      | 3                        | 100%               |
 | 第二阶段 | 4      | 1（另 1 个部分完成）     | 25% + 部分完成     |
-| 第三阶段 | 3      | 1                        | 33%                |
+| 第三阶段 | 3      | 2                        | 67%                |
 | 第四阶段 | 5      | 3                        | 60%                |
-| **总计** | **15** | **8（另 1 个部分完成）** | **53% + 部分完成** |
+| **总计** | **15** | **9（另 1 个部分完成）** | **60% + 部分完成** |
 
 ---
 
@@ -268,5 +265,5 @@
 
 ---
 
-**最后更新**：2026-05-19（已同步第一阶段、百万行索引修复、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API 与 Condvar 扫描等待）  
+**最后更新**：2026-05-19（已同步第一阶段、百万行索引修复、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待与 C FFI 核心绑定）
 **维护者**：开发团队

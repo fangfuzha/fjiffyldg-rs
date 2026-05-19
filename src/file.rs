@@ -324,11 +324,16 @@ impl FileModel {
 
     /// 后台扫描行结构
     fn scan_lines_background(&self) {
-        self.scan_lines_background_from(0, None);
+        self.scan_lines_background_from(0, None, true);
     }
 
     /// 从指定偏移开始后台扫描行结构
-    fn scan_lines_background_from(&self, offset: u64, forced_utf_mode: Option<UtfMode>) {
+    fn scan_lines_background_from(
+        &self,
+        offset: u64,
+        forced_utf_mode: Option<UtfMode>,
+        auto_detect: bool,
+    ) {
         let scan_state = Arc::clone(&self.scan_state);
         let line_index = Arc::clone(&self.line_index);
         let data = self.get_raw_data();
@@ -340,16 +345,13 @@ impl FileModel {
 
         rayon::spawn(move || {
             let _completion_guard = ScanCompletionGuard::new(scan_state);
-            let utf_mode = forced_utf_mode
-                .filter(|mode| *mode != UtfMode::Default)
-                .or_else(|| {
-                    if current_utf_mode != UtfMode::Default {
-                        Some(current_utf_mode)
-                    } else {
-                        Some(file_utf_mode)
-                    }
-                })
-                .unwrap_or(UtfMode::Default);
+            let utf_mode = match forced_utf_mode {
+                Some(UtfMode::Default) if auto_detect => file_utf_mode,
+                Some(mode) => mode,
+                None if current_utf_mode != UtfMode::Default => current_utf_mode,
+                None if auto_detect => file_utf_mode,
+                None => UtfMode::Default,
+            };
 
             line_index.build_from_data_at(&scan_data, offset, utf_mode);
         });
@@ -368,6 +370,16 @@ impl FileModel {
 
     /// 重新扫描已加载文件的行结构
     pub fn restart_scan(&self, offset: u64, utf_mode: UtfMode) -> Result<()> {
+        self.restart_scan_with_auto_detect(offset, utf_mode, true)
+    }
+
+    /// 重新扫描已加载文件的行结构，并指定默认模式是否按 BOM 自动检测
+    pub(crate) fn restart_scan_with_auto_detect(
+        &self,
+        offset: u64,
+        utf_mode: UtfMode,
+        auto_detect: bool,
+    ) -> Result<()> {
         if !self.is_loaded() {
             *self.error_code.write() = FjiffyldgError::FileNotLoaded.to_error_code();
             return Err(FjiffyldgError::FileNotLoaded);
@@ -382,7 +394,7 @@ impl FileModel {
         self.wait_scan_complete();
         self.line_index.clear();
         self.set_utf_mode(utf_mode);
-        self.scan_lines_background_from(offset, Some(utf_mode));
+        self.scan_lines_background_from(offset, Some(utf_mode), auto_detect);
         *self.error_code.write() = 0;
         Ok(())
     }

@@ -1,0 +1,590 @@
+//! C ABI 绑定。
+//!
+//! 本模块导出与 C++ 参考实现同名的核心函数，供 C/C++ 或其他 FFI 调用方使用。
+//! 所有返回的缓冲区指针都由 `fjiffyldg_t` 持有，调用方不应自行释放。
+
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+
+use crate::encoding::{
+    check_extract_text_utf8, check_text_ascii, check_whole_text_utf8,
+    get_utf8_char_count_with_offset,
+};
+use crate::error::{FjiffyldgError, UtfMode};
+use crate::file::{append_file, clone_file, concatenate_files, get_file_size, save_file};
+use crate::Fjiffyldg;
+use std::ffi::CStr;
+use std::os::raw::{c_char, c_int, c_longlong, c_uint};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::path::PathBuf;
+use std::ptr;
+
+/// C ABI 使用的不透明文件处理句柄。
+#[repr(C)]
+pub struct fjiffyldg_t {
+    /// Rust 高层文件处理实例
+    model: Fjiffyldg,
+    /// 最近一次读取返回给 C 调用方的缓冲区
+    read_buffer: Vec<u8>,
+    /// 最近一次 huge mapping 返回给 C 调用方的缓冲区
+    huge_buffer: Vec<u8>,
+}
+
+/// C ABI 句柄指针类型。
+pub type fjiffyldg_ptr = *mut fjiffyldg_t;
+
+impl fjiffyldg_t {
+    /// 创建新的 C ABI 句柄。
+    fn new() -> Self {
+        Self {
+            model: Fjiffyldg::new(),
+            read_buffer: Vec::new(),
+            huge_buffer: Vec::new(),
+        }
+    }
+
+    /// 将读取结果保存到内部缓冲区并返回 C 指针。
+    fn store_read_buffer(&mut self, data: Option<Vec<u8>>, len: *mut c_uint) -> *const c_char {
+        if len.is_null() {
+            return ptr::null();
+        }
+
+        match data {
+            Some(data) => {
+                self.read_buffer = data;
+                unsafe {
+                    *len = self.read_buffer.len().min(c_uint::MAX as usize) as c_uint;
+                }
+                self.read_buffer.as_ptr().cast::<c_char>()
+            }
+            None => {
+                unsafe {
+                    *len = 0;
+                }
+                ptr::null()
+            }
+        }
+    }
+}
+
+/// 将 Rust 错误转换为 C 兼容错误码。
+fn error_code(error: FjiffyldgError) -> c_int {
+    error.to_error_code()
+}
+
+/// 将 `Result` 转换为 C 兼容错误码。
+fn result_code<T>(result: crate::Result<T>) -> c_int {
+    match result {
+        Ok(_) => 0,
+        Err(error) => error_code(error),
+    }
+}
+
+/// 捕获 FFI 边界内的 panic，避免 panic 跨越 C ABI。
+fn ffi_guard<T, F>(fallback: T, body: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    catch_unwind(AssertUnwindSafe(body)).unwrap_or(fallback)
+}
+
+/// 将 C 字符串转换为 Rust 路径。
+fn path_from_c(name: *const c_char) -> crate::Result<PathBuf> {
+    if name.is_null() {
+        return Err(FjiffyldgError::FileInaccessible);
+    }
+
+    let value = unsafe { CStr::from_ptr(name) };
+    let value = value.to_str().map_err(|_| FjiffyldgError::EncodingError)?;
+    Ok(PathBuf::from(value))
+}
+
+/// 将 C 字节指针转换为切片。
+fn bytes_from_c<'a>(text: *const c_char, len: c_uint) -> Option<&'a [u8]> {
+    bytes_from_c_len(text, len as usize)
+}
+
+/// 将 C 字节指针和 `usize` 长度转换为切片。
+fn bytes_from_c_len<'a>(text: *const c_char, len: usize) -> Option<&'a [u8]> {
+    if len == 0 {
+        return Some(&[]);
+    }
+
+    if text.is_null() {
+        return None;
+    }
+
+    Some(unsafe { std::slice::from_raw_parts(text.cast::<u8>(), len) })
+}
+
+/// 获取可变句柄引用。
+fn handle_mut<'a>(fm: fjiffyldg_ptr) -> Option<&'a mut fjiffyldg_t> {
+    unsafe { fm.as_mut() }
+}
+
+/// 获取不可变句柄引用。
+fn handle_ref<'a>(fm: fjiffyldg_ptr) -> Option<&'a fjiffyldg_t> {
+    unsafe { fm.as_ref() }
+}
+
+/// 将 C ABI UTF 模式转换为 Rust UTF 模式。
+fn utf_mode_from_c(utf: c_int) -> UtfMode {
+    match utf {
+        1 => UtfMode::Utf16Le,
+        2 => UtfMode::Utf16Be,
+        3 => UtfMode::Utf32Le,
+        4 => UtfMode::Utf32Be,
+        _ => UtfMode::Default,
+    }
+}
+
+/// 创建并返回一个 `fjiffyldg` 文件处理句柄。
+#[no_mangle]
+pub extern "C" fn fjiffyldg_create() -> fjiffyldg_ptr {
+    ffi_guard(ptr::null_mut(), || {
+        Box::into_raw(Box::new(fjiffyldg_t::new()))
+    })
+}
+
+/// 释放 `fjiffyldg` 文件处理句柄。
+#[no_mangle]
+pub extern "C" fn fjiffyldg_clear(fm: fjiffyldg_ptr) {
+    ffi_guard((), || {
+        if !fm.is_null() {
+            unsafe {
+                drop(Box::from_raw(fm));
+            }
+        }
+    })
+}
+
+/// 加载文件并启动后台行扫描。
+#[no_mangle]
+pub extern "C" fn LoadAndScanFile(fm: fjiffyldg_ptr, name: *const c_char) -> c_int {
+    ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
+        let Some(handle) = handle_mut(fm) else {
+            return FjiffyldgError::FileNotLoaded.to_error_code();
+        };
+
+        let path = match path_from_c(name) {
+            Ok(path) => path,
+            Err(error) => return error_code(error),
+        };
+
+        result_code(handle.model.load_and_scan(path))
+    })
+}
+
+/// 仅加载文件，不启动行扫描。
+#[no_mangle]
+pub extern "C" fn LoadFileOnly(fm: fjiffyldg_ptr, name: *const c_char) -> c_int {
+    ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
+        let Some(handle) = handle_mut(fm) else {
+            return FjiffyldgError::FileNotLoaded.to_error_code();
+        };
+
+        let path = match path_from_c(name) {
+            Ok(path) => path,
+            Err(error) => return error_code(error),
+        };
+
+        result_code(handle.model.load(path))
+    })
+}
+
+/// 获取文件加载状态。
+#[no_mangle]
+pub extern "C" fn GetFileIsLoaded(fm: fjiffyldg_ptr) -> c_int {
+    ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
+        let Some(handle) = handle_ref(fm) else {
+            return FjiffyldgError::FileNotLoaded.to_error_code();
+        };
+
+        match handle.model.load_status() {
+            Ok(true) => 0,
+            Ok(false) => FjiffyldgError::FileNotLoaded.to_error_code(),
+            Err(error) => error_code(error),
+        }
+    })
+}
+
+/// 重新扫描已加载文件的行结构。
+#[no_mangle]
+pub extern "C" fn RestartScanFile(
+    fm: fjiffyldg_ptr,
+    name: *const c_char,
+    offset: c_longlong,
+    utf: c_int,
+) {
+    ffi_guard((), || {
+        if offset < 0 {
+            return;
+        }
+
+        if let Some(handle) = handle_mut(fm) {
+            if !handle.model.is_loaded() && !name.is_null() {
+                let Ok(path) = path_from_c(name) else {
+                    return;
+                };
+                let _ = handle.model.load_and_scan(path);
+            }
+            let auto_detect = utf == -1;
+            let _ = handle.model.handle().restart_scan_with_auto_detect(
+                offset as u64,
+                utf_mode_from_c(utf),
+                auto_detect,
+            );
+        }
+    })
+}
+
+/// 阻塞等待后台行扫描完成。
+#[no_mangle]
+pub extern "C" fn WaitFileScanTaskFinished(fm: fjiffyldg_ptr) {
+    ffi_guard((), || {
+        if let Some(handle) = handle_ref(fm) {
+            handle.model.wait_scan();
+        }
+    })
+}
+
+/// 获取文件行数。
+#[no_mangle]
+pub extern "C" fn GetFileLineCount(fm: fjiffyldg_ptr) -> c_longlong {
+    ffi_guard(-1, || {
+        handle_ref(fm)
+            .map(|handle| handle.model.line_count() as c_longlong)
+            .unwrap_or(-1)
+    })
+}
+
+/// 获取指定行的起始字节位置。
+#[no_mangle]
+pub extern "C" fn GetFileLinePos(fm: fjiffyldg_ptr, index: c_longlong) -> c_longlong {
+    ffi_guard(-1, || {
+        handle_ref(fm)
+            .map(|handle| handle.model.line_pos(index) as c_longlong)
+            .unwrap_or(-1)
+    })
+}
+
+/// 获取指定行的内容长度。
+#[no_mangle]
+pub extern "C" fn GetFileLineLength(fm: fjiffyldg_ptr, index: c_longlong) -> c_longlong {
+    ffi_guard(-1, || {
+        handle_ref(fm)
+            .map(|handle| handle.model.line_length(index) as c_longlong)
+            .unwrap_or(-1)
+    })
+}
+
+/// 根据字节位置查找所在行索引。
+#[no_mangle]
+pub extern "C" fn GetFileLineIndex(fm: fjiffyldg_ptr, pos: c_longlong) -> c_longlong {
+    ffi_guard(-1, || {
+        handle_ref(fm)
+            .map(|handle| handle.model.line_at_pos(pos) as c_longlong)
+            .unwrap_or(-1)
+    })
+}
+
+/// 从指定字节位置读取文件数据。
+#[no_mangle]
+pub extern "C" fn ReadFileData(
+    fm: fjiffyldg_ptr,
+    pos: c_longlong,
+    len: *mut c_uint,
+) -> *const c_char {
+    ffi_guard(ptr::null(), || {
+        let Some(handle) = handle_mut(fm) else {
+            return ptr::null();
+        };
+        if len.is_null() {
+            return ptr::null();
+        }
+
+        let requested_len = unsafe { *len } as usize;
+        let data = handle.model.read(pos, requested_len);
+        handle.store_read_buffer(data, len)
+    })
+}
+
+/// 按行边界读取文件数据，并截断超长行。
+#[no_mangle]
+pub extern "C" fn ReadFileDataLLineCut(
+    fm: fjiffyldg_ptr,
+    index: *mut c_longlong,
+    bpos: *mut c_longlong,
+    epos: *mut c_longlong,
+    len: *mut c_uint,
+) -> *const c_char {
+    ffi_guard(ptr::null(), || {
+        let Some(handle) = handle_mut(fm) else {
+            return ptr::null();
+        };
+        if index.is_null() || bpos.is_null() || epos.is_null() || len.is_null() {
+            return ptr::null();
+        }
+
+        let mut index_value = unsafe { *index };
+        let mut bpos_value = 0;
+        let mut epos_value = 0;
+        let mut len_value = unsafe { *len } as usize;
+
+        let data = handle.model.read_line_cut(
+            &mut index_value,
+            &mut bpos_value,
+            &mut epos_value,
+            &mut len_value,
+        );
+
+        unsafe {
+            *index = index_value;
+            *bpos = bpos_value;
+            *epos = epos_value;
+            *len = len_value.min(c_uint::MAX as usize) as c_uint;
+        }
+
+        handle.store_read_buffer(data, len)
+    })
+}
+
+/// 从指定位置读取到当前行末尾。
+#[no_mangle]
+pub extern "C" fn ReadFileDataEndOfLine(
+    fm: fjiffyldg_ptr,
+    index: c_longlong,
+    pos: c_longlong,
+    len: *mut c_uint,
+) -> *const c_char {
+    ffi_guard(ptr::null(), || {
+        let Some(handle) = handle_mut(fm) else {
+            return ptr::null();
+        };
+        if len.is_null() {
+            return ptr::null();
+        }
+
+        let mut len_value = unsafe { *len } as usize;
+        let data = handle.model.read_to_line_end(index, pos, &mut len_value);
+        unsafe {
+            *len = len_value.min(c_uint::MAX as usize) as c_uint;
+        }
+        handle.store_read_buffer(data, len)
+    })
+}
+
+/// 获取整个文件的映射数据副本。
+#[no_mangle]
+pub extern "C" fn GetFileMappedHuge(
+    fm: fjiffyldg_ptr,
+    fileName: *const c_char,
+    bufferSize: *mut c_longlong,
+) -> *const c_char {
+    ffi_guard(ptr::null(), || {
+        let Some(handle) = handle_mut(fm) else {
+            return ptr::null();
+        };
+        if bufferSize.is_null() {
+            return ptr::null();
+        }
+
+        let path = match path_from_c(fileName) {
+            Ok(path) => path,
+            Err(_) => {
+                unsafe {
+                    *bufferSize = 0;
+                }
+                return ptr::null();
+            }
+        };
+
+        match handle.model.handle().get_huge_buffer(path) {
+            Ok(data) => {
+                handle.huge_buffer = data;
+                unsafe {
+                    *bufferSize =
+                        handle.huge_buffer.len().min(c_longlong::MAX as usize) as c_longlong;
+                }
+                handle.huge_buffer.as_ptr().cast::<c_char>()
+            }
+            Err(_) => {
+                unsafe {
+                    *bufferSize = 0;
+                }
+                ptr::null()
+            }
+        }
+    })
+}
+
+/// 清理 huge buffer 内部缓冲区。
+#[no_mangle]
+pub extern "C" fn ClearHugeBuffer(fm: fjiffyldg_ptr) {
+    ffi_guard((), || {
+        if let Some(handle) = handle_mut(fm) {
+            handle.huge_buffer.clear();
+        }
+    })
+}
+
+/// 获取文件大小。
+#[no_mangle]
+pub extern "C" fn GetFileSizeByteCount(name: *const c_char) -> c_longlong {
+    ffi_guard(
+        FjiffyldgError::IoError.to_error_code() as c_longlong,
+        || {
+            let path = match path_from_c(name) {
+                Ok(path) => path,
+                Err(error) => return error_code(error) as c_longlong,
+            };
+
+            get_file_size(path)
+                .map(|size| size.min(c_longlong::MAX as u64) as c_longlong)
+                .unwrap_or_else(|error| error_code(error) as c_longlong)
+        },
+    )
+}
+
+/// 检查文本是否全部为 ASCII。
+#[no_mangle]
+pub extern "C" fn CheckTextASCII(text: *const c_char, len: c_uint) -> c_uint {
+    ffi_guard(len, || {
+        bytes_from_c(text, len)
+            .map(check_text_ascii)
+            .unwrap_or(len as usize)
+            .min(c_uint::MAX as usize) as c_uint
+    })
+}
+
+/// 检查完整文本是否为 UTF-8。
+#[no_mangle]
+pub extern "C" fn CheckWholeTextUtf8(text: *const c_char, len: c_uint) -> c_uint {
+    ffi_guard(len, || {
+        bytes_from_c(text, len)
+            .map(check_whole_text_utf8)
+            .unwrap_or(len as usize)
+            .min(c_uint::MAX as usize) as c_uint
+    })
+}
+
+/// 随机抽样检查文本片段是否为 UTF-8。
+#[no_mangle]
+pub extern "C" fn CheckExtractTextUtf8(text: *const c_char, len: c_uint) -> c_uint {
+    ffi_guard(len, || {
+        bytes_from_c(text, len)
+            .map(check_extract_text_utf8)
+            .unwrap_or(len as usize)
+            .min(c_uint::MAX as usize) as c_uint
+    })
+}
+
+/// 统计 UTF-8 字符数，并推进调用方传入的文本指针。
+#[no_mangle]
+pub extern "C" fn GetUtf8TextCharCount(text: *mut *const c_char, len: c_uint) -> c_uint {
+    ffi_guard(0, || {
+        if text.is_null() {
+            return 0;
+        }
+
+        let start = unsafe { *text };
+        if start.is_null() {
+            return 0;
+        }
+        let Some(data) = bytes_from_c(start, len) else {
+            return 0;
+        };
+
+        let (count, consumed) = get_utf8_char_count_with_offset(data);
+        unsafe {
+            *text = start.add(consumed);
+        }
+
+        count.min(c_uint::MAX as usize) as c_uint
+    })
+}
+
+/// 克隆文件。
+#[no_mangle]
+pub extern "C" fn ToCloneFile(oldFileName: *const c_char, newFileName: *const c_char) -> c_int {
+    ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
+        let old_path = match path_from_c(oldFileName) {
+            Ok(path) => path,
+            Err(error) => return error_code(error),
+        };
+        let new_path = match path_from_c(newFileName) {
+            Ok(path) => path,
+            Err(error) => return error_code(error),
+        };
+
+        result_code(clone_file(old_path, new_path))
+    })
+}
+
+/// 保存指定内容到文件。
+#[no_mangle]
+pub extern "C" fn ToSaveFile(
+    fileName: *const c_char,
+    buffer: *const c_char,
+    len: c_longlong,
+) -> c_int {
+    ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
+        if len < 0 {
+            return FjiffyldgError::InvalidOffset.to_error_code();
+        }
+
+        let path = match path_from_c(fileName) {
+            Ok(path) => path,
+            Err(error) => return error_code(error),
+        };
+        let Some(data) = bytes_from_c_len(buffer, len as usize) else {
+            return FjiffyldgError::BufferTooSmall.to_error_code();
+        };
+
+        result_code(save_file(path, data))
+    })
+}
+
+/// 追加指定内容到文件。
+#[no_mangle]
+pub extern "C" fn ToAppendFile(
+    fileName: *const c_char,
+    buffer: *const c_char,
+    len: c_longlong,
+) -> c_int {
+    ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
+        if len < 0 {
+            return FjiffyldgError::InvalidOffset.to_error_code();
+        }
+
+        let path = match path_from_c(fileName) {
+            Ok(path) => path,
+            Err(error) => return error_code(error),
+        };
+        let Some(data) = bytes_from_c_len(buffer, len as usize) else {
+            return FjiffyldgError::BufferTooSmall.to_error_code();
+        };
+
+        result_code(append_file(path, data))
+    })
+}
+
+/// 将第二个文件内容追加到第一个文件。
+#[no_mangle]
+pub extern "C" fn ToConcatenateFile(
+    catFileName: *const c_char,
+    appendFileName: *const c_char,
+) -> c_int {
+    ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
+        let cat_path = match path_from_c(catFileName) {
+            Ok(path) => path,
+            Err(error) => return error_code(error),
+        };
+        let append_path = match path_from_c(appendFileName) {
+            Ok(path) => path,
+            Err(error) => return error_code(error),
+        };
+
+        result_code(concatenate_files([append_path], cat_path))
+    })
+}

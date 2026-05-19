@@ -41,6 +41,7 @@
 
 pub mod encoding;
 pub mod error;
+pub mod ffi;
 pub mod file;
 pub mod line_index;
 
@@ -236,7 +237,9 @@ impl Drop for Fjiffyldg {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CString;
     use std::io::Write;
+    use std::ptr;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -270,6 +273,105 @@ mod tests {
 
         let content = std::fs::read(temp2.path()).unwrap();
         assert_eq!(content, b"hello world");
+    }
+
+    #[test]
+    fn test_c_ffi_smoke_load_scan_query_and_read() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"line1\nline2\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert!(!handle.is_null());
+
+        assert_eq!(ffi::GetFileIsLoaded(handle), -1);
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        assert_eq!(ffi::GetFileIsLoaded(handle), 0);
+        assert_eq!(ffi::GetFileLineCount(handle), 3);
+        assert_eq!(ffi::GetFileLinePos(handle, 1), 6);
+        assert_eq!(ffi::GetFileLineLength(handle, 1), 5);
+        assert_eq!(ffi::GetFileLineIndex(handle, 7), 1);
+
+        let mut len = 5;
+        let data = ffi::ReadFileData(handle, 0, &mut len);
+        assert!(!data.is_null());
+        let data = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), len as usize) };
+        assert_eq!(len, 5);
+        assert_eq!(data, b"line1");
+
+        assert_eq!(ffi::LoadAndScanFile(ptr::null_mut(), path.as_ptr()), -1);
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
+    fn test_c_ffi_line_cut_overwrites_out_params() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"a\nb\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        let mut index = 0;
+        let mut bpos = i64::MIN;
+        let mut epos = i64::MIN;
+        let mut len = 0;
+        let data = ffi::ReadFileDataLLineCut(handle, &mut index, &mut bpos, &mut epos, &mut len);
+
+        assert!(!data.is_null());
+        assert_eq!(index, 2);
+        assert_eq!(bpos, 0);
+        assert_eq!(epos, 4);
+        assert_eq!(len, 4);
+        let data = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), len as usize) };
+        assert_eq!(data, b"a\nb\n");
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
+    fn test_c_ffi_text_and_file_helpers_handle_boundaries() {
+        let mut text = ptr::null();
+        assert_eq!(ffi::GetUtf8TextCharCount(&mut text, 0), 0);
+        assert!(text.is_null());
+
+        let temp = NamedTempFile::new().unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+        let data = CString::new("hello").unwrap();
+
+        assert_eq!(ffi::ToSaveFile(path.as_ptr(), data.as_ptr(), 5), 0);
+        assert_eq!(ffi::ToAppendFile(path.as_ptr(), data.as_ptr(), 5), 0);
+        assert_eq!(std::fs::read(temp.path()).unwrap(), b"hellohello");
+    }
+
+    #[test]
+    fn test_c_ffi_restart_scan_distinguishes_auto_detect_from_default() {
+        let mut temp = NamedTempFile::new().unwrap();
+        let mut data = vec![0xFF, 0xFE];
+        for unit in "skip\nline\n".encode_utf16() {
+            data.extend_from_slice(&unit.to_le_bytes());
+        }
+        temp.write_all(&data).unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        ffi::RestartScanFile(handle, path.as_ptr(), 12, -1);
+        ffi::WaitFileScanTaskFinished(handle);
+        assert_eq!(ffi::GetFileLinePos(handle, 0), 12);
+        assert_eq!(ffi::GetFileLinePos(handle, 1), 22);
+
+        ffi::RestartScanFile(handle, path.as_ptr(), 12, 0);
+        ffi::WaitFileScanTaskFinished(handle);
+        assert_eq!(ffi::GetFileLinePos(handle, 0), 12);
+        assert_eq!(ffi::GetFileLinePos(handle, 1), 21);
+
+        ffi::fjiffyldg_clear(handle);
     }
 
     #[test]
