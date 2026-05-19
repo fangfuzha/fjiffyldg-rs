@@ -89,6 +89,30 @@ impl Drop for ScanCompletionGuard {
     }
 }
 
+/// 后台扫描共享的原始字节缓冲。
+#[derive(Clone)]
+enum ScanBuffer {
+    /// 小文件内存缓冲
+    Owned(Arc<[u8]>),
+    /// 大文件内存映射
+    Mapped(Arc<Mmap>),
+}
+
+impl ScanBuffer {
+    /// 返回完整字节切片。
+    fn as_slice(&self) -> &[u8] {
+        match self {
+            Self::Owned(data) => data,
+            Self::Mapped(mmap) => mmap,
+        }
+    }
+
+    /// 返回从指定偏移开始的字节切片。
+    fn slice_from(&self, offset: u64) -> &[u8] {
+        self.as_slice().get(offset as usize..).unwrap_or_default()
+    }
+}
+
 /// 高性能文件模型
 ///
 /// 特性：
@@ -111,9 +135,9 @@ pub struct FileModel {
     line_index: Arc<LineIndex>,
 
     /// 小文件直接内存缓冲
-    data: RwLock<Option<Vec<u8>>>,
+    data: RwLock<Option<Arc<[u8]>>>,
     /// 大文件内存映射
-    mmap: RwLock<Option<Mmap>>,
+    mmap: RwLock<Option<Arc<Mmap>>>,
     /// 大文件分块映射状态
     mmap_offset: RwLock<u64>,
 
@@ -297,13 +321,13 @@ impl FileModel {
             let mut buffer = Vec::new();
             if let Ok(mut f) = File::open(path) {
                 if f.read_to_end(&mut buffer).is_ok() {
-                    *self.data.write() = Some(buffer);
+                    *self.data.write() = Some(Arc::<[u8]>::from(buffer));
                 }
             }
         } else {
             match unsafe { Mmap::map(&*self.file.read().as_ref().unwrap()) } {
                 Ok(mmap) => {
-                    *self.mmap.write() = Some(mmap);
+                    *self.mmap.write() = Some(Arc::new(mmap));
                     *self.mmap_offset.write() = 0;
                 }
                 Err(_) => {
@@ -340,9 +364,11 @@ impl FileModel {
         let scan_state = Arc::clone(&self.scan_state);
         let cancel_requested = Arc::clone(&self.cancel_requested);
         let line_index = Arc::clone(&self.line_index);
-        let data = self.get_raw_data();
-        let file_utf_mode = Self::detect_utf_mode(&data);
-        let scan_data = data.get(offset as usize..).unwrap_or_default().to_vec();
+        let Some(scan_buffer) = self.get_scan_buffer() else {
+            self.line_index.mark_scanned();
+            return;
+        };
+        let file_utf_mode = Self::detect_utf_mode(scan_buffer.as_slice());
         let current_utf_mode = self.get_utf_mode();
 
         cancel_requested.store(false, Ordering::Release);
@@ -350,6 +376,7 @@ impl FileModel {
 
         rayon::spawn(move || {
             let _completion_guard = ScanCompletionGuard::new(scan_state);
+            let scan_data = scan_buffer.slice_from(offset);
             let utf_mode = match forced_utf_mode {
                 Some(UtfMode::Default) if auto_detect => file_utf_mode,
                 Some(mode) => mode,
@@ -359,7 +386,7 @@ impl FileModel {
             };
 
             let _ = line_index.build_from_data_at_cancelable(
-                &scan_data,
+                scan_data,
                 offset,
                 utf_mode,
                 &cancel_requested,
@@ -426,16 +453,16 @@ impl FileModel {
     }
 
     /// 获取原始文件数据
-    fn get_raw_data(&self) -> Vec<u8> {
-        if let Some(ref data) = *self.data.read() {
-            return data.clone();
+    fn get_scan_buffer(&self) -> Option<ScanBuffer> {
+        if let Some(data) = self.data.read().as_ref() {
+            return Some(ScanBuffer::Owned(Arc::clone(data)));
         }
 
-        if let Some(ref mmap) = *self.mmap.read() {
-            return mmap.to_vec();
+        if let Some(mmap) = self.mmap.read().as_ref() {
+            return Some(ScanBuffer::Mapped(Arc::clone(mmap)));
         }
 
-        Vec::new()
+        None
     }
 
     /// 标记扫描完成（内部调用）
@@ -674,8 +701,10 @@ impl Default for FileModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::sync::mpsc;
     use std::time::Duration;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_scan_state_notifies_waiters_on_finish() {
@@ -698,6 +727,39 @@ mod tests {
         receiver.recv_timeout(Duration::from_secs(1)).unwrap();
         receiver.recv_timeout(Duration::from_secs(1)).unwrap();
         assert!(!state.is_scanning());
+    }
+
+    #[test]
+    fn test_scan_buffer_reuses_small_file_storage() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"abcdef").unwrap();
+
+        let model = FileModel::new();
+        model.load_file_only(temp.path()).unwrap();
+
+        let expected_ptr = model.data.read().as_ref().unwrap().as_ptr();
+        let scan_buffer = model.get_scan_buffer().unwrap();
+        let slice = scan_buffer.slice_from(2);
+
+        assert_eq!(slice, b"cdef");
+        assert_eq!(slice.as_ptr(), unsafe { expected_ptr.add(2) });
+    }
+
+    #[test]
+    fn test_scan_buffer_reuses_mmap_storage() {
+        let mut temp = NamedTempFile::new().unwrap();
+        let data = vec![b'x'; (USUALLY_IO_SIZE_MAX as usize) + 1];
+        temp.write_all(&data).unwrap();
+
+        let model = FileModel::new();
+        model.load_file_only(temp.path()).unwrap();
+
+        let expected_ptr = model.mmap.read().as_ref().unwrap().as_ptr();
+        let scan_buffer = model.get_scan_buffer().unwrap();
+        let slice = scan_buffer.slice_from(3);
+
+        assert_eq!(slice.len(), data.len() - 3);
+        assert_eq!(slice.as_ptr(), unsafe { expected_ptr.add(3) });
     }
 }
 
