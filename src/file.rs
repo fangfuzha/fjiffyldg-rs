@@ -1,7 +1,7 @@
 use crate::encoding::{detect_encoding, TextEncoding};
 use crate::error::{FjiffyldgError, Result, UtfMode};
 use crate::line_index::LineIndex;
-use memmap2::{Mmap, MmapMut};
+use memmap2::{Mmap, MmapMut, MmapOptions};
 use parking_lot::{Condvar, Mutex, RwLock};
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Read, Write};
@@ -142,6 +142,8 @@ pub struct FileModel {
     mmap: RwLock<Option<Arc<Mmap>>>,
     /// 大文件分块映射状态
     mmap_offset: RwLock<u64>,
+    /// 大文件分块映射窗口大小
+    mmap_chunk_size: RwLock<u64>,
 
     /// 文件句柄（用于后续操作）
     file: RwLock<Option<File>>,
@@ -167,6 +169,7 @@ impl FileModel {
             data: RwLock::new(None),
             mmap: RwLock::new(None),
             mmap_offset: RwLock::new(0),
+            mmap_chunk_size: RwLock::new(MMAP_CHUNK_SIZE),
             file: RwLock::new(None),
             file_size: RwLock::new(0),
             utf_mode: RwLock::new(UtfMode::Default),
@@ -283,6 +286,16 @@ impl FileModel {
     }
 
     fn load_file<P: AsRef<Path>>(&self, path: P, enable_scan: bool) -> Result<()> {
+        self.load_file_with_mmap_chunk_size(path, enable_scan, MMAP_CHUNK_SIZE)
+    }
+
+    /// 使用指定 mmap 窗口大小加载文件。
+    fn load_file_with_mmap_chunk_size<P: AsRef<Path>>(
+        &self,
+        path: P,
+        enable_scan: bool,
+        mmap_chunk_size: u64,
+    ) -> Result<()> {
         let path = path.as_ref();
         self.request_stop_scan();
         self.line_index.clear();
@@ -309,6 +322,7 @@ impl FileModel {
 
         let file_size = metadata.len();
         *self.file_size.write() = file_size;
+        *self.mmap_chunk_size.write() = mmap_chunk_size.max(1);
         *self.file.write() = Some(file);
 
         if file_size == 0 {
@@ -327,14 +341,15 @@ impl FileModel {
                 }
             }
         } else {
-            match unsafe { Mmap::map(&*self.file.read().as_ref().unwrap()) } {
+            let window_len = file_size.min(*self.mmap_chunk_size.read());
+            match self.map_file_window(0, window_len) {
                 Ok(mmap) => {
                     *self.mmap.write() = Some(Arc::new(mmap));
                     *self.mmap_offset.write() = 0;
                 }
-                Err(_) => {
-                    *self.error_code.write() = FjiffyldgError::MmapError.to_error_code();
-                    return Err(FjiffyldgError::MmapError);
+                Err(err) => {
+                    *self.error_code.write() = err.to_error_code();
+                    return Err(err);
                 }
             }
         }
@@ -467,6 +482,47 @@ impl FileModel {
         None
     }
 
+    /// 映射指定文件窗口。
+    fn map_file_window(&self, offset: u64, len: u64) -> Result<Mmap> {
+        let file_guard = self.file.read();
+        let file = file_guard.as_ref().ok_or(FjiffyldgError::FileNotLoaded)?;
+        let len = usize::try_from(len).map_err(|_| FjiffyldgError::MmapError)?;
+
+        unsafe {
+            MmapOptions::new()
+                .offset(offset)
+                .len(len)
+                .map(file)
+                .map_err(|_| FjiffyldgError::MmapError)
+        }
+    }
+
+    /// 确保当前 mmap 窗口覆盖指定读取范围。
+    fn ensure_mmap_window(&self, pos: u64, len: u64) -> Result<Arc<Mmap>> {
+        if let Some(mmap) = self.mmap.read().as_ref() {
+            let offset = *self.mmap_offset.read();
+            let mapped_end = offset + mmap.len() as u64;
+            if pos >= offset && pos.saturating_add(len) <= mapped_end {
+                return Ok(Arc::clone(mmap));
+            }
+        }
+
+        let file_size = *self.file_size.read();
+        let chunk_size = (*self.mmap_chunk_size.read()).max(1);
+        let aligned_offset = (pos / chunk_size) * chunk_size;
+        let requested_end = pos.saturating_add(len).min(file_size);
+        let window_end = aligned_offset
+            .saturating_add(chunk_size)
+            .max(requested_end)
+            .min(file_size);
+        let window_len = window_end.saturating_sub(aligned_offset);
+        let mmap = Arc::new(self.map_file_window(aligned_offset, window_len)?);
+
+        *self.mmap.write() = Some(Arc::clone(&mmap));
+        *self.mmap_offset.write() = aligned_offset;
+        Ok(mmap)
+    }
+
     /// 标记扫描完成（内部调用）
     pub fn mark_scanned(&self) {
         self.line_index.mark_scanned();
@@ -499,11 +555,12 @@ impl FileModel {
             return Some(data[end_pos..end_pos + actual_len].to_vec());
         }
 
-        if let Some(ref mmap) = *self.mmap.read() {
-            return Some(mmap[end_pos..end_pos + actual_len].to_vec());
-        }
-
-        None
+        let mmap = self
+            .ensure_mmap_window(end_pos as u64, actual_len as u64)
+            .ok()?;
+        let mmap_offset = *self.mmap_offset.read() as usize;
+        let window_pos = end_pos.checked_sub(mmap_offset)?;
+        Some(mmap[window_pos..window_pos + actual_len].to_vec())
     }
 
     /// 读取指定行的数据
@@ -762,6 +819,25 @@ mod tests {
 
         assert_eq!(slice.len(), data.len() - 3);
         assert_eq!(slice.as_ptr(), unsafe { expected_ptr.add(3) });
+    }
+
+    #[test]
+    fn test_read_data_remaps_window_for_far_mmap_offset() {
+        let mut temp = NamedTempFile::new().unwrap();
+        let mut data = vec![b'a'; (USUALLY_IO_SIZE_MAX as usize) + 64];
+        let window_size = 4096u64;
+        let target_pos = window_size as usize + 17;
+        data[target_pos..target_pos + 5].copy_from_slice(b"hello");
+        temp.write_all(&data).unwrap();
+
+        let model = FileModel::new();
+        model
+            .load_file_with_mmap_chunk_size(temp.path(), false, window_size)
+            .unwrap();
+
+        assert_eq!(*model.mmap_offset.read(), 0);
+        assert_eq!(model.read_data(target_pos as i64, 5).unwrap(), b"hello");
+        assert_eq!(*model.mmap_offset.read(), window_size);
     }
 
     #[test]
