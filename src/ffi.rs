@@ -248,6 +248,16 @@ pub extern "C" fn WaitFileScanTaskFinished(fm: fjiffyldg_ptr) {
     })
 }
 
+/// 请求停止后台行扫描并清空当前行索引。
+#[no_mangle]
+pub extern "C" fn BackstageRequestStop(fm: fjiffyldg_ptr) {
+    ffi_guard((), || {
+        if let Some(handle) = handle_ref(fm) {
+            handle.model.request_stop_scan();
+        }
+    })
+}
+
 /// 获取文件行数。
 #[no_mangle]
 pub extern "C" fn GetFileLineCount(fm: fjiffyldg_ptr) -> c_longlong {

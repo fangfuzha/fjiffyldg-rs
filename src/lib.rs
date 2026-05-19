@@ -117,6 +117,11 @@ impl Fjiffyldg {
         self.inner.wait_scan_complete();
     }
 
+    /// 请求停止后台扫描并清空当前行索引
+    pub fn request_stop_scan(&self) {
+        self.inner.request_stop_scan();
+    }
+
     /// 获取最后的错误码
     pub fn error_code(&self) -> i32 {
         self.inner.get_error_code()
@@ -418,6 +423,51 @@ mod tests {
         assert_eq!(fjiffyldg.line_count(), 3);
         assert_eq!(fjiffyldg.line_pos(0), 5);
         assert_eq!(fjiffyldg.line_length(0), 5);
+    }
+
+    #[test]
+    fn test_request_stop_scan_is_safe_when_no_scan_is_running() {
+        let fjiffyldg = Fjiffyldg::new();
+        fjiffyldg.request_stop_scan();
+        assert!(!fjiffyldg.is_scanning());
+    }
+
+    #[test]
+    fn test_request_stop_scan_clears_index_after_background_scan() {
+        let mut temp = NamedTempFile::new().unwrap();
+        let mut data = Vec::with_capacity(200_000);
+        for _ in 0..100_000 {
+            data.extend_from_slice(b"x\n");
+        }
+        temp.write_all(&data).unwrap();
+
+        let fjiffyldg = Fjiffyldg::new();
+        fjiffyldg.load_and_scan(temp.path()).unwrap();
+        fjiffyldg.request_stop_scan();
+
+        assert!(!fjiffyldg.is_scanning());
+        assert_eq!(fjiffyldg.line_count(), 0);
+        assert_eq!(fjiffyldg.line_pos(0), -1);
+    }
+
+    #[test]
+    fn test_c_ffi_backstage_request_stop_clears_index() {
+        let mut temp = NamedTempFile::new().unwrap();
+        let mut data = Vec::with_capacity(200_000);
+        for _ in 0..100_000 {
+            data.extend_from_slice(b"x\n");
+        }
+        temp.write_all(&data).unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::BackstageRequestStop(handle);
+
+        assert_eq!(ffi::GetFileLineCount(handle), 0);
+        assert_eq!(ffi::GetFileLinePos(handle, 0), -1);
+
+        ffi::fjiffyldg_clear(handle);
     }
 
     #[test]

@@ -92,11 +92,31 @@ impl LineIndex {
 
     /// 从指定文件偏移处的数据建立行索引
     pub fn build_from_data_at(&self, data: &[u8], base_offset: u64, utf_mode: UtfMode) {
+        let cancel_requested = AtomicBool::new(false);
+        let _ = self.build_from_data_at_cancelable(data, base_offset, utf_mode, &cancel_requested);
+    }
+
+    /// 从指定文件偏移处的数据建立可取消的行索引
+    ///
+    /// 返回 `true` 表示完整构建完成，返回 `false` 表示在扫描过程中收到取消请求，
+    /// 此时索引会被清空并标记为已结束。
+    pub fn build_from_data_at_cancelable(
+        &self,
+        data: &[u8],
+        base_offset: u64,
+        utf_mode: UtfMode,
+        cancel_requested: &AtomicBool,
+    ) -> bool {
         self.clear();
+
+        if cancel_requested.load(Ordering::Acquire) {
+            self.mark_scanned();
+            return false;
+        }
 
         if data.is_empty() {
             self.mark_scanned();
-            return;
+            return true;
         }
 
         self.add_line(base_offset);
@@ -105,6 +125,12 @@ impl LineIndex {
         let mut scan_pos = 0usize;
 
         while scan_pos < data.len() {
+            if cancel_requested.load(Ordering::Acquire) {
+                self.clear();
+                self.mark_scanned();
+                return false;
+            }
+
             if let Some(newline_len) = Self::newline_len_at(data, scan_pos, utf_mode) {
                 self.add_line_length((scan_pos - line_start) as u64);
                 scan_pos += newline_len;
@@ -115,11 +141,16 @@ impl LineIndex {
             }
         }
 
+        if cancel_requested.load(Ordering::Acquire) {
+            self.clear();
+            self.mark_scanned();
+            return false;
+        }
+
         self.add_line_length((data.len() - line_start) as u64);
-
         *self.total_lines.write() = self.line_lengths.read().len() as u64;
-
         self.mark_scanned();
+        true
     }
 
     /// 获取指定行的长度
@@ -484,5 +515,23 @@ mod tests {
             index.get_line_by_pos(((DIRECT_LINES_MAX + 1) * 2) as i64),
             (DIRECT_LINES_MAX + 1) as i64
         );
+    }
+
+    #[test]
+    fn test_cancelled_build_leaves_empty_scanned_index() {
+        let index = LineIndex::new();
+        let cancel_requested = AtomicBool::new(true);
+
+        let completed = index.build_from_data_at_cancelable(
+            b"line1\nline2\n",
+            0,
+            UtfMode::Default,
+            &cancel_requested,
+        );
+
+        assert!(!completed);
+        assert!(index.is_scanned());
+        assert_eq!(index.get_line_count(), 0);
+        assert_eq!(index.get_line_pos(0), -1);
     }
 }

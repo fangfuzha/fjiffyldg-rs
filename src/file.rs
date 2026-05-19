@@ -129,6 +129,8 @@ pub struct FileModel {
     is_loaded: RwLock<bool>,
     /// 后台扫描状态
     scan_state: Arc<ScanState>,
+    /// 后台扫描取消请求标记
+    cancel_requested: Arc<AtomicBool>,
 }
 
 impl FileModel {
@@ -145,6 +147,7 @@ impl FileModel {
             error_code: RwLock::new(0),
             is_loaded: RwLock::new(false),
             scan_state: Arc::new(ScanState::new()),
+            cancel_requested: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -255,7 +258,7 @@ impl FileModel {
 
     fn load_file<P: AsRef<Path>>(&self, path: P, enable_scan: bool) -> Result<()> {
         let path = path.as_ref();
-        self.wait_scan_complete();
+        self.request_stop_scan();
         self.line_index.clear();
         *self.data.write() = None;
         *self.mmap.write() = None;
@@ -335,12 +338,14 @@ impl FileModel {
         auto_detect: bool,
     ) {
         let scan_state = Arc::clone(&self.scan_state);
+        let cancel_requested = Arc::clone(&self.cancel_requested);
         let line_index = Arc::clone(&self.line_index);
         let data = self.get_raw_data();
         let file_utf_mode = Self::detect_utf_mode(&data);
         let scan_data = data.get(offset as usize..).unwrap_or_default().to_vec();
         let current_utf_mode = self.get_utf_mode();
 
+        cancel_requested.store(false, Ordering::Release);
         scan_state.begin();
 
         rayon::spawn(move || {
@@ -353,7 +358,12 @@ impl FileModel {
                 None => UtfMode::Default,
             };
 
-            line_index.build_from_data_at(&scan_data, offset, utf_mode);
+            let _ = line_index.build_from_data_at_cancelable(
+                &scan_data,
+                offset,
+                utf_mode,
+                &cancel_requested,
+            );
         });
     }
 
@@ -391,12 +401,21 @@ impl FileModel {
             return Err(FjiffyldgError::InvalidOffset);
         }
 
-        self.wait_scan_complete();
+        self.request_stop_scan();
         self.line_index.clear();
         self.set_utf_mode(utf_mode);
         self.scan_lines_background_from(offset, Some(utf_mode), auto_detect);
         *self.error_code.write() = 0;
         Ok(())
+    }
+
+    /// 请求停止后台扫描并等待其退出
+    pub fn request_stop_scan(&self) {
+        self.cancel_requested.store(true, Ordering::Release);
+        self.wait_scan_complete();
+        self.cancel_requested.store(false, Ordering::Release);
+        self.line_index.clear();
+        self.line_index.mark_scanned();
     }
 
     /// 等待行扫描完成
@@ -635,7 +654,7 @@ impl FileModel {
 
     /// 清空所有数据
     pub fn clear(&self) {
-        self.wait_scan_complete();
+        self.request_stop_scan();
         *self.data.write() = None;
         *self.mmap.write() = None;
         *self.file.write() = None;
