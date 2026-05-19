@@ -30,38 +30,47 @@ use fjiffyldg::Fjiffyldg;
 
 fn main() -> fjiffyldg::Result<()> {
     let fjiffyldg = Fjiffyldg::new();
-    
+
     // 加载文件并构建行索引
     fjiffyldg.load_and_scan("large_file.txt")?;
-    
+
     // 获取文件信息
     println!("文件大小: {} 字节", fjiffyldg.file_size());
     println!("总行数: {}", fjiffyldg.line_count());
-    
+
     // 读取指定位置数据
     if let Some(data) = fjiffyldg.read(0, 1024) {
         println!("前1024字节: {:?}", data);
     }
-    
+
     // 查询行信息
     println!("第5行起始位置: {}", fjiffyldg.line_pos(5));
     println!("第10行长度: {}", fjiffyldg.line_length(10));
-    println!("位置100000所在行: {}", fjiffyldg.line_at_position(100000));
-    
+    println!("位置100000所在行: {}", fjiffyldg.line_at_pos(100000));
+
     Ok(())
 }
 ```
 
 ## 📊 功能特性
 
-| 功能 | 说明 |
-|------|------|
-| 文件加载 | 按需加载，支持内存映射 |
-| 行索引 | 自动构建行偏移表，O(log n) 查找 |
-| 编码检测 | UTF-8/UTF-16 自动识别 |
-| 文件操作 | 复制、保存、追加、连接 |
+| 功能     | 说明                                            |
+| -------- | ----------------------------------------------- |
+| 文件加载 | 按需加载，支持内存映射                          |
+| 行索引   | 自动构建行偏移表，O(log n) 查找                 |
+| 编码检测 | UTF-8/UTF-16 自动识别                           |
+| 文件操作 | 复制、保存、追加、连接                          |
+| C ABI    | 提供 C 头文件与 smoke 编译检查                  |
 | 基准验证 | 提供 Criterion 大文件加载、扫描、查询和读取基准 |
-| 零依赖 | 最小依赖，仅需 memmap2/encoding_rs |
+| 零依赖   | 最小依赖，仅需 memmap2/encoding_rs              |
+
+## 🧩 C ABI
+
+公共 C 头文件位于 `include/fjiffyldg.h`。可用下面的命令验证头文件能被 C 编译器独立编译：
+
+```powershell
+pwsh -File scripts/check_c_abi.ps1
+```
 
 ## 🧪 基准测试
 
@@ -74,6 +83,7 @@ cargo bench --bench large_file
 ## 📋 许可证
 
 项目采用多重许可证：
+
 - BSD-3-Clause（与原 C++ 项目保持一致）
 - MIT（Rust 社区主流选择）
 - Apache-2.0（可选，更宽松的专利授权）
@@ -88,21 +98,24 @@ fjiffyldg-rs/
 │   ├── encoding.rs     # 编码检测
 │   ├── line_index.rs   # 行索引
 │   └── file.rs         # 文件操作
+├── include/            # C ABI 头文件
 ├── examples/           # 示例代码
 ├── benches/            # Criterion 基准
+├── scripts/            # 发布与验证脚本
+├── tests/              # 集成与 C ABI smoke 输入
 ├── Cargo.toml
 └── README.md
 ```
 
 ## 🔄 与 C++ 版本比较
 
-| 特性 | C++ 版本 | Rust 版本 |
-|------|---------|----------|
-| 许可证 | BSD 3-Clause | BSD-3-Clause OR MIT OR Apache-2.0 |
-| 平台依赖 | U++ 框架 | Rust 标准库 + 轻量依赖 |
-| 内存管理 | 手动 + RAII | 所有权 + 借用检查器 |
-| 跨平台 | ✅ | ✅ |
-| 生态系统 | C++ | crates.io |
+| 特性     | C++ 版本     | Rust 版本                         |
+| -------- | ------------ | --------------------------------- |
+| 许可证   | BSD 3-Clause | BSD-3-Clause OR MIT OR Apache-2.0 |
+| 平台依赖 | U++ 框架     | Rust 标准库 + 轻量依赖            |
+| 内存管理 | 手动 + RAII  | 所有权 + 借用检查器               |
+| 跨平台   | ✅           | ✅                                |
+| 生态系统 | C++          | crates.io                         |
 
 ## 🤝 贡献
 

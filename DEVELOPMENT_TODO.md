@@ -232,12 +232,12 @@
 
 ## 📊 进度追踪
 
-| 阶段     | 任务数 | 完成 | 进度 |
-| -------- | ------ | ---- | ---- |
-| 第一阶段 | 3      | 3    | 100% |
-| 第二阶段 | 4      | 4    | 100% |
-| 第三阶段 | 3      | 3    | 100% |
-| 第四阶段 | 5      | 5    | 100% |
+| 阶段     | 任务数 | 完成   | 进度     |
+| -------- | ------ | ------ | -------- |
+| 第一阶段 | 3      | 3      | 100%     |
+| 第二阶段 | 4      | 4      | 100%     |
+| 第三阶段 | 3      | 3      | 100%     |
+| 第四阶段 | 5      | 5      | 100%     |
 | **总计** | **15** | **15** | **100%** |
 
 ---
@@ -256,7 +256,8 @@
 - **功能覆盖报告**：[docs/功能覆盖深度检查报告.md](docs/功能覆盖深度检查报告.md)
 - **C++ 参考实现**：[reference/fjiffyldg/Fjiffyldg/](reference/fjiffyldg/Fjiffyldg/)
 - **Rust 源代码**：[src/](src/)
-- **测试文件**：[tests/](tests/)（如果存在）
+- **测试文件**：[tests/](tests/)（包含 C ABI smoke 输入）
+- **C 头文件**：[include/fjiffyldg.h](include/fjiffyldg.h)，运行 `pwsh -File scripts/check_c_abi.ps1` 验证声明可编译
 - **大文件基准**：[benches/large_file.rs](benches/large_file.rs)，运行 `cargo bench --bench large_file`
 
 ---
@@ -267,5 +268,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C FFI 核心绑定与 Criterion 大文件基准入口）
+**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C FFI 核心绑定、C 头文件 smoke 编译与 Criterion 大文件基准入口）
 **维护者**：开发团队
