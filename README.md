@@ -1,5 +1,7 @@
 # Fjiffyldg (Rust)
 
+[English](README_EN.md)
+
 高性能、跨平台的通用文件处理开发库，专为现代大文件高效加载设计。
 
 > 🚀 这是原 C++ [Fjiffyldg 项目](https://github.com/ceepuka/fjiffyldg) 的 Rust 重写版本。
@@ -103,8 +105,10 @@ fjiffyldg-rs/
 ├── benches/            # Criterion 基准
 ├── scripts/            # 发布与验证脚本
 ├── tests/              # 集成与 C ABI smoke 输入
+├── docs/               # 覆盖报告与项目文档
 ├── Cargo.toml
-└── README.md
+├── README.md           # 中文 README
+└── README_EN.md        # English README
 ```
 
 ## 🔄 与 C++ 版本比较

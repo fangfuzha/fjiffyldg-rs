@@ -1,5 +1,7 @@
 # Rust 版本开发 TODO 清单
 
+[English](DEVELOPMENT_TODO_EN.md)
+
 基于功能覆盖深度检查报告，以下是后续开发的优先级任务清单。
 
 ---
@@ -239,7 +241,8 @@
 | 第三阶段 | 3      | 3      | 100%     |
 | 第四阶段 | 5      | 5      | 100%     |
 | 发布配套 | 3      | 3      | 100%     |
-| **总计** | **18** | **18** | **100%** |
+| 文档配套 | 2      | 1      | 50%      |
+| **总计** | **20** | **19** | **95%**  |
 
 ---
 
@@ -267,7 +270,22 @@
 
 ---
 
-## 🎯 建议执行策略
+## � 文档配套任务
+
+### ✅ Task D.1: 添加便于开发者使用的双语文档
+
+- **文件**：[README.md](README.md)、[README_EN.md](README_EN.md)、[DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md)、[DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md)、[docs/功能覆盖深度检查报告.md](docs/功能覆盖深度检查报告.md)、[docs/feature_coverage_depth_report.md](docs/feature_coverage_depth_report.md)
+- **要求**：所有项目文档都需要提供中文和英文两个版本，并在文档头部链接到另一个语言版本
+- **状态**：✅ 已完成（2026-05-20）
+
+### ⏳ Task D.2: 保持双语文档同步
+
+- **要求**：后续新增或修改项目文档时，同一提交内同步更新对应语言版本
+- **状态**：⏳ 持续执行
+
+---
+
+## �🎯 建议执行策略
 
 1. **快速赢**（第一周）：完成第一阶段 3 个任务，修复核心功能缺陷
 2. **性能突破**（第二周）：完成第二阶段 4 个任务，实现分块索引和大文件优化
@@ -278,7 +296,8 @@
 
 ## 📚 参考资源
 
-- **功能覆盖报告**：[docs/功能覆盖深度检查报告.md](docs/功能覆盖深度检查报告.md)
+- **功能覆盖报告**：[docs/功能覆盖深度检查报告.md](docs/功能覆盖深度检查报告.md) / [docs/feature_coverage_depth_report.md](docs/feature_coverage_depth_report.md)
+- **开发 TODO**：[DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md) / [DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md)
 - **C++ 参考实现**：[reference/fjiffyldg/Fjiffyldg/](reference/fjiffyldg/Fjiffyldg/)
 - **Rust 源代码**：[src/](src/)
 - **测试文件**：[tests/](tests/)（包含 C ABI smoke 输入）
@@ -293,5 +312,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C FFI 核心绑定、C 头文件 smoke 编译与 Criterion 大文件基准入口）
+**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI 与头文件 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范）
 **维护者**：开发团队
