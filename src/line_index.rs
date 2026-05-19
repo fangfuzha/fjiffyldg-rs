@@ -418,6 +418,48 @@ mod tests {
     }
 
     #[test]
+    fn test_utf16be_crlf_positions_use_original_byte_offsets() {
+        let index = LineIndex::new();
+        let data = [0, b'a', 0, b'\r', 0, b'\n', 0, b'b'];
+
+        index.build_from_data(&data, UtfMode::Utf16Be);
+
+        assert_eq!(index.get_line_count(), 2);
+        assert_eq!(index.get_line_pos(0), 0);
+        assert_eq!(index.get_line_pos(1), 6);
+        assert_eq!(index.get_line_length(0), 2);
+        assert_eq!(index.get_line_length(1), 2);
+    }
+
+    #[test]
+    fn test_utf32le_lf_positions_use_original_byte_offsets() {
+        let index = LineIndex::new();
+        let data = [b'a', 0, 0, 0, b'\n', 0, 0, 0, b'b', 0, 0, 0];
+
+        index.build_from_data_at(&data, 101, UtfMode::Utf32Le);
+
+        assert_eq!(index.get_line_count(), 2);
+        assert_eq!(index.get_line_pos(0), 101);
+        assert_eq!(index.get_line_pos(1), 109);
+        assert_eq!(index.get_line_length(0), 4);
+        assert_eq!(index.get_line_length(1), 4);
+    }
+
+    #[test]
+    fn test_utf32be_crlf_positions_use_original_byte_offsets() {
+        let index = LineIndex::new();
+        let data = [0, 0, 0, b'a', 0, 0, 0, b'\r', 0, 0, 0, b'\n', 0, 0, 0, b'b'];
+
+        index.build_from_data(&data, UtfMode::Utf32Be);
+
+        assert_eq!(index.get_line_count(), 2);
+        assert_eq!(index.get_line_pos(0), 0);
+        assert_eq!(index.get_line_pos(1), 12);
+        assert_eq!(index.get_line_length(0), 4);
+        assert_eq!(index.get_line_length(1), 4);
+    }
+
+    #[test]
     fn test_positions_after_direct_index_limit_are_preserved() {
         let index = LineIndex::new();
         let line_count = DIRECT_LINES_MAX + 2;
