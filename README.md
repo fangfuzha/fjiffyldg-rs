@@ -68,7 +68,7 @@ fn main() -> fjiffyldg::Result<()> {
 
 ## 🧩 C ABI
 
-公共 C/C++ 头文件位于 `include/fjiffyldg.h`，由 `cbindgen` 根据 Rust FFI 源码生成，提供 C 函数声明、`fjiffyldg_ptr` 句柄别名、导出宏和轻量 C++ RAII 包装。内置检查会验证头文件未过期、C/C++ 声明可编译、release 动态库可链接并能运行最小 smoke。详细使用说明见 [docs/c_api_usage.md](docs/c_api_usage.md)。
+公共 C/C++ 头文件位于 `include/fjiffyldg.h`，由 `cbindgen` 根据 Rust FFI 源码生成，提供 C 函数声明、`fjiffyldg_ptr` 句柄别名、导出宏和轻量 C++ RAII 包装。内置检查会验证头文件未过期、C/C++ 声明可编译、release 动态库可链接并能运行最小 smoke。详细使用说明与全接口参考见 [docs/c_api_usage.md](docs/c_api_usage.md)。
 
 ```powershell
 cargo install cbindgen --locked

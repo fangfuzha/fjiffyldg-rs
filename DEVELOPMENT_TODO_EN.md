@@ -55,8 +55,9 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 | Task                                    | Status  | Notes                                                                                                                                                     |
 | --------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Add bilingual developer documentation   | Done    | Each project document has Chinese and English versions, with a language switch link at the top                                                            |
-| Add bilingual C API usage documentation | Done    | Documents cbindgen header generation, build/link steps, handle lifetime, load/scan, reads, huge mmap, encoding helpers, error codes, and maintenance flow |
-| Keep bilingual documents synchronized   | Ongoing | Future documentation edits should update both language versions in the same change                                                                        |
+| Add bilingual C API usage documentation       | Done    | Documents cbindgen header generation, build/link steps, handle lifetime, load/scan, reads, huge mmap, encoding helpers, error codes, and maintenance flow |
+| Cover every C API interface in the usage guide | Done    | Documents every exported interface from [include/fjiffyldg.h](include/fjiffyldg.h) / [src/ffi.rs](src/ffi.rs), including signature, parameters, return values, lifetimes, and notes |
+| Keep bilingual documents synchronized         | Ongoing | Future documentation edits should update both language versions in the same change                                                                        |
 
 ## Progress
 
@@ -67,7 +68,7 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 | Phase 3         | 3     | 3    | 100%     |
 | Phase 4         | 5     | 5    | 100%     |
 | Release support | 4     | 4    | 100%     |
-| Documentation   | 3     | 2    | 67%      |
+| Documentation   | 4     | 3    | 75%      |
 
 ## Remaining Work
 

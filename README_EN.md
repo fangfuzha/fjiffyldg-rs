@@ -53,7 +53,7 @@ fn main() -> fjiffyldg::Result<()> {
 
 ## C/C++ ABI
 
-The public C/C++ header is [include/fjiffyldg.h](include/fjiffyldg.h). It is generated from the Rust FFI source with `cbindgen` and provides C declarations, the `fjiffyldg_ptr` handle alias, export macros, and a lightweight C++ RAII wrapper. The built-in check verifies that the header is current, C/C++ declarations compile, the release dynamic library links, and minimal smoke executables run. See [docs/c_api_usage_en.md](docs/c_api_usage_en.md) for the full usage guide.
+The public C/C++ header is [include/fjiffyldg.h](include/fjiffyldg.h). It is generated from the Rust FFI source with `cbindgen` and provides C declarations, the `fjiffyldg_ptr` handle alias, export macros, and a lightweight C++ RAII wrapper. The built-in check verifies that the header is current, C/C++ declarations compile, the release dynamic library links, and minimal smoke executables run. See [docs/c_api_usage_en.md](docs/c_api_usage_en.md) for the full usage guide and complete API reference.
 
 ```powershell
 cargo install cbindgen --locked

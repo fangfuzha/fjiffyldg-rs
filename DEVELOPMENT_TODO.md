@@ -241,8 +241,8 @@
 | 第三阶段 | 3      | 3      | 100%    |
 | 第四阶段 | 5      | 5      | 100%    |
 | 发布配套 | 4      | 4      | 100%    |
-| 文档配套 | 3      | 2      | 67%     |
-| **总计** | **22** | **21** | **95%** |
+| 文档配套 | 4      | 3      | 75%     |
+| **总计** | **23** | **22** | **96%** |
 
 ---
 
@@ -292,7 +292,13 @@
 - **要求**：详细说明 `cbindgen` 头文件生成、库构建、C/C++ 编译链接、句柄生命周期、加载扫描、读取、huge mmap、编码工具、错误码和维护流程
 - **状态**：✅ 已完成（2026-05-20）
 
-### ⏳ Task D.3: 保持双语文档同步
+### ✅ Task D.3: C API 使用指南覆盖全部接口
+
+- **文件**：[docs/c_api_usage.md](docs/c_api_usage.md)、[docs/c_api_usage_en.md](docs/c_api_usage_en.md)、[include/fjiffyldg.h](include/fjiffyldg.h)、[src/ffi.rs](src/ffi.rs)
+- **要求**：C API 使用指南必须包含 `include/fjiffyldg.h` / `src/ffi.rs` 导出的全部接口，逐项说明签名、参数、返回值、错误码、指针或缓冲区生命周期和注意事项
+- **状态**：✅ 已完成（2026-05-20）
+
+### ⏳ Task D.4: 保持双语文档同步
 
 - **要求**：后续新增或修改项目文档时，同一提交内同步更新对应语言版本
 - **状态**：⏳ 持续执行
@@ -327,5 +333,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与链接运行 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档）
+**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与链接运行 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档、C API 全接口参考）
 **维护者**：开发团队

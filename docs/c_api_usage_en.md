@@ -181,7 +181,67 @@ Notes:
 | `ToAppendFile`         | Append a buffer to a file                            |
 | `ToConcatenateFile`    | Append the second file to the first file             |
 
-## 9. Error Codes
+## 9. Complete API Reference
+
+This section covers every interface currently exported by [include/fjiffyldg.h](../include/fjiffyldg.h) / [src/ffi.rs](../src/ffi.rs). The generated header is the signature source of truth; regenerate the header and update this section after changing FFI exports.
+
+### 9.1 Handle Management
+
+| Interface | Signature | Parameters | Return value | Lifetime and notes |
+| --------- | --------- | ---------- | ------------ | ------------------ |
+| `fjiffyldg_create` | `fjiffyldg_ptr fjiffyldg_create(void)` | None | Opaque handle on success; null on failure | The caller owns the returned handle and must release it with `fjiffyldg_clear` |
+| `fjiffyldg_clear` | `void fjiffyldg_clear(fjiffyldg_ptr fm)` | `fm`: handle to release; may be null | None | Releases the file model, read buffer, and huge mmap; the handle must not be used afterward |
+
+### 9.2 Loading, Scanning, and Scan Control
+
+| Interface | Signature | Parameters | Return value | Lifetime and notes |
+| --------- | --------- | ---------- | ------------ | ------------------ |
+| `LoadAndScanFile` | `int LoadAndScanFile(fjiffyldg_ptr fm, const char *name)` | `fm`: handle; `name`: NUL-terminated path | `0` on success; non-zero error code otherwise | Loads the file and starts background line scanning; call `WaitFileScanTaskFinished` before queries that need the full index |
+| `LoadFileOnly` | `int LoadFileOnly(fjiffyldg_ptr fm, const char *name)` | `fm`: handle; `name`: path | `0` on success; non-zero error code otherwise | Loads the file without line scanning; useful for byte-range reads |
+| `GetFileIsLoaded` | `int GetFileIsLoaded(fjiffyldg_ptr fm)` | `fm`: handle | `0` means loaded and usable; non-zero means unloaded or invalid handle | This follows error-code semantics and is not a boolean true/false result |
+| `RestartScanFile` | `void RestartScanFile(fjiffyldg_ptr fm, const char *name, long long offset, int utf)` | `fm`: handle; `name`: path; `offset`: scan start byte; `utf`: UTF mode value | None | Stops the current scan and rebuilds the index from `offset`; invalid handles or paths are ignored |
+| `WaitFileScanTaskFinished` | `void WaitFileScanTaskFinished(fjiffyldg_ptr fm)` | `fm`: handle | None | Blocks until background scanning finishes; null handles return immediately |
+| `BackstageRequestStop` | `void BackstageRequestStop(fjiffyldg_ptr fm)` | `fm`: handle | None | Requests background scan cancellation and clears the current line index |
+
+### 9.3 Line Index Queries
+
+| Interface | Signature | Parameters | Return value | Lifetime and notes |
+| --------- | --------- | ---------- | ------------ | ------------------ |
+| `GetFileLineCount` | `long long GetFileLineCount(fjiffyldg_ptr fm)` | `fm`: handle | Line count; `-1` on failure | While scanning is still running, this may reflect only the scanned range |
+| `GetFileLinePos` | `long long GetFileLinePos(fjiffyldg_ptr fm, long long index)` | `fm`: handle; `index`: zero-based line number | Line start byte offset; `-1` on failure or out of range | Offsets are raw file bytes, not character positions |
+| `GetFileLineLength` | `long long GetFileLineLength(fjiffyldg_ptr fm, long long index)` | `fm`: handle; `index`: zero-based line number | Content length; `-1` on failure or out of range | Length excludes `\n` and `\r\n` line endings |
+| `GetFileLineIndex` | `long long GetFileLineIndex(fjiffyldg_ptr fm, long long pos)` | `fm`: handle; `pos`: byte offset | Containing line index; `-1` on failure or out of range | Position lookup uses byte offsets even for UTF text |
+
+### 9.4 Reads and mmap Buffers
+
+| Interface | Signature | Parameters | Return value | Lifetime and notes |
+| --------- | --------- | ---------- | ------------ | ------------------ |
+| `ReadFileData` | `const char *ReadFileData(fjiffyldg_ptr fm, long long pos, unsigned int *len)` | `fm`: handle; `pos`: start byte; `len`: requested length in, actual length out | Internal buffer pointer on success; null on failure | Pointer is owned by the handle and may be overwritten by the next read; copy it if needed later |
+| `ReadFileDataLLineCut` | `const char *ReadFileDataLLineCut(fjiffyldg_ptr fm, long long *index, long long *bpos, long long *epos, unsigned int *len)` | `index`: line in/out; `bpos`/`epos`: read bounds in/out; `len`: length in/out | Internal buffer pointer on success; null on failure | Batches short lines and truncates long lines at the 4 KB cutoff; output parameters are advanced |
+| `ReadFileDataEndOfLine` | `const char *ReadFileDataEndOfLine(fjiffyldg_ptr fm, long long index, long long pos, unsigned int *len)` | `index`: line number; `pos`: line or file byte position; `len`: length in/out | Internal buffer pointer on success; null on failure | Reads from `pos` to the current line end; returned pointer follows internal-buffer lifetime rules |
+| `GetFileMappedHuge` | `const char *GetFileMappedHuge(fjiffyldg_ptr fm, const char *fileName, long long *bufferSize)` | `fm`: handle; `fileName`: path; `bufferSize`: mapping size out | Read-only mmap pointer on success; null on failure and size set to 0 | Pointer remains valid until `ClearHugeBuffer`, the next `GetFileMappedHuge`, or `fjiffyldg_clear` |
+| `ClearHugeBuffer` | `void ClearHugeBuffer(fjiffyldg_ptr fm)` | `fm`: handle | None | Releases the huge mmap owned by the handle; previously returned mmap pointers become invalid |
+
+### 9.5 Encoding Checks
+
+| Interface | Signature | Parameters | Return value | Lifetime and notes |
+| --------- | --------- | ---------- | ------------ | ------------------ |
+| `CheckTextASCII` | `unsigned int CheckTextASCII(const char *text, unsigned int len)` | `text`: byte pointer; `len`: byte length | `0` means all ASCII; non-zero indicates the non-ASCII position or distance | If `text` is null and `len > 0`, an error value is returned; do not treat true as success |
+| `CheckWholeTextUtf8` | `unsigned int CheckWholeTextUtf8(const char *text, unsigned int len)` | `text`: full byte range; `len`: length | `0` means valid UTF-8; non-zero indicates the invalid position or distance | Use for strict validation of a complete buffer |
+| `CheckExtractTextUtf8` | `unsigned int CheckExtractTextUtf8(const char *text, unsigned int len)` | `text`: byte range; `len`: length | `0` means sampled ranges are valid; non-zero means sampled invalid UTF-8 was found | Sampling is a fast heuristic and is not a substitute for full validation when strict guarantees are required |
+| `GetUtf8TextCharCount` | `unsigned int GetUtf8TextCharCount(const char **text, unsigned int len)` | `text`: input/output byte pointer address; `len`: maximum bytes to inspect | Returns UTF-8 character count and advances `*text` to the consumed position | Returns 0 if `text` or `*text` is null; callers can subtract pointers to get consumed bytes |
+
+### 9.6 File Helpers
+
+| Interface | Signature | Parameters | Return value | Lifetime and notes |
+| --------- | --------- | ---------- | ------------ | ------------------ |
+| `GetFileSizeByteCount` | `long long GetFileSizeByteCount(const char *name)` | `name`: path | File size on success; negative or error-code value on failure | Unit is bytes |
+| `ToCloneFile` | `int ToCloneFile(const char *oldFileName, const char *newFileName)` | `oldFileName`: source path; `newFileName`: destination path | `0` on success; non-zero error code otherwise | The destination file is created or overwritten according to Rust file operation behavior |
+| `ToSaveFile` | `int ToSaveFile(const char *fileName, const char *buffer, long long len)` | `fileName`: destination path; `buffer`: bytes to write; `len`: byte count | `0` on success; non-zero error code otherwise | Writes `buffer[0..len)` to the file; `len < 0` or null pointers return an error |
+| `ToAppendFile` | `int ToAppendFile(const char *fileName, const char *buffer, long long len)` | `fileName`: destination path; `buffer`: bytes to append; `len`: byte count | `0` on success; non-zero error code otherwise | Creates the file if missing; the caller keeps ownership of `buffer` |
+| `ToConcatenateFile` | `int ToConcatenateFile(const char *catFileName, const char *appendFileName)` | `catFileName`: destination file to append to; `appendFileName`: source file to read | `0` on success; non-zero error code otherwise | Appends the second file contents to the end of the first file |
+
+## 10. Error Codes
 
 Most functions returning `int` use 0 for success and non-zero values for errors. Common codes map to Rust internal errors:
 
@@ -195,7 +255,7 @@ Most functions returning `int` use 0 for success and non-zero values for errors.
 
 Pointer-returning functions usually use null for failure and set output parameters to 0 or preserve diagnostic context.
 
-## 10. Maintaining Generated Files
+## 11. Maintaining Generated Files
 
 After changing `#[no_mangle] extern "C"` signatures or C API comments in [src/ffi.rs](../src/ffi.rs), run:
 

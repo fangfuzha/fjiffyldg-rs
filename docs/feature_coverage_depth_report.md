@@ -49,7 +49,7 @@
 | Large clone/save/append/concat paths | Done                     | Uses mmap or large buffered paths                                               |
 | `FILEBLOCK` 1 MB stream block        | Intentionally not reused | Rust keeps a simpler full small-file buffer design                              |
 | C++ header RAII wrapper              | Done                     | cbindgen configuration emits the lightweight `Fjiffyldg::Fjiffyldg` wrapper     |
-| C API usage documentation            | Done                     | Bilingual guides cover generation, build, link, lifetime, and maintenance flows |
+| C API usage documentation            | Done                     | Bilingual guides cover generation, build, link, lifetime, maintenance flows, and a complete API reference |
 | C/C++ link-and-run smoke              | Done                     | The check script builds the release dynamic library, links C/C++ smoke, and runs it |
 
 ## 4. Line Index System
@@ -96,7 +96,7 @@ The Rust version maps C-compatible error codes while also exposing richer Rust e
 - C FFI smoke coverage
 - cbindgen-generated C/C++ header smoke compilation
 - C/C++ ABI link-and-run smoke validation
-- Bilingual C API usage documentation
+- Bilingual C API usage documentation with a complete exported-interface reference
 - `GetFileMappedHuge` real mmap pointer semantics
 - Windowed mmap reading and background scanning
 
@@ -108,6 +108,6 @@ The Rust version maps C-compatible error codes while also exposing richer Rust e
 | Low      | clone/save/append/concat benchmark comparison | Performance has not yet been quantified against the C++ version          | Add I/O benchmark cases and compare with the reference implementation |
 ## 9. Conclusion
 
-The Rust version covers the common file loading, scanning, line positioning, encoding detection, and reading scenarios from the C++ reference implementation. Recent work also aligned cbindgen-generated C/C++ ABI packaging, bilingual C API documentation, `GetFileMappedHuge` mmap pointer behavior, windowed mmap scanning, and large-file helper paths.
+The Rust version covers the common file loading, scanning, line positioning, encoding detection, and reading scenarios from the C++ reference implementation. Recent work also aligned cbindgen-generated C/C++ ABI packaging, bilingual C API documentation with complete interface coverage, `GetFileMappedHuge` mmap pointer behavior, windowed mmap scanning, and large-file helper paths.
 
 Future work should focus on release validation: real huge-file benchmarks and quantified I/O performance comparison against the C++ implementation.
