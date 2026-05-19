@@ -207,13 +207,14 @@ impl LineIndex {
             return -1;
         }
 
+        let pos = pos as u64;
+        let (mut left, mut right) = self.search_bounds_by_pos(pos);
         let dir_offs = self.direct_offsets.read();
         let ext_offs = self.extended_offsets.read();
-        let pos = pos as u64;
+        let total_offsets = dir_offs.len() + ext_offs.len();
 
-        // 二分查找
-        let mut left = 0;
-        let mut right = dir_offs.len() + ext_offs.len();
+        left = left.min(total_offsets);
+        right = right.min(total_offsets);
 
         while left < right {
             let mid = (left + right) / 2;
@@ -235,6 +236,36 @@ impl LineIndex {
         } else {
             0
         }
+    }
+
+    /// 使用分块索引为字节位置查询裁剪全局行偏移二分范围。
+    fn search_bounds_by_pos(&self, pos: u64) -> (usize, usize) {
+        let dir_len = self.direct_offsets.read().len();
+        let ext_len = self.extended_offsets.read().len();
+        let total_offsets = dir_len + ext_len;
+        let chunks = self.chunks.read();
+
+        if chunks.is_empty() || total_offsets == 0 {
+            return (0, total_offsets);
+        }
+
+        let chunk_partition = chunks.partition_point(|chunk| chunk.start_pos <= pos);
+        if chunk_partition == 0 {
+            return (
+                0,
+                (chunks[0].max_line_index as usize + 1).min(total_offsets),
+            );
+        }
+
+        let chunk_index = chunk_partition - 1;
+        let left = if chunk_index == 0 {
+            CHUNK_BEGIN
+        } else {
+            chunks[chunk_index - 1].max_line_index as usize + 1
+        };
+        let right = chunks[chunk_index].max_line_index as usize + 1;
+
+        (left.min(total_offsets), right.min(total_offsets))
     }
 
     /// 等待扫描完成
@@ -415,6 +446,10 @@ mod tests {
         fn add_chunk_for_tests(&self, line_index: u64, pos: u64, max_chunks: usize) {
             self.update_chunk_index(line_index, pos, max_chunks);
         }
+
+        fn search_bounds_by_pos_for_tests(&self, pos: u64) -> (usize, usize) {
+            self.search_bounds_by_pos(pos)
+        }
     }
 
     #[test]
@@ -591,6 +626,26 @@ mod tests {
             index.get_line_by_pos(((DIRECT_LINES_MAX + 65_536) * 2) as i64),
             (DIRECT_LINES_MAX + 65_536) as i64
         );
+    }
+
+    #[test]
+    fn test_chunk_index_narrows_position_search_bounds() {
+        let index = LineIndex::new();
+        let line_count = DIRECT_LINES_MAX + 140_000;
+        let mut data = Vec::with_capacity(line_count * 2);
+
+        for _ in 0..line_count {
+            data.extend_from_slice(b"x\n");
+        }
+
+        index.build_from_data(&data, UtfMode::Default);
+
+        let (left, right) =
+            index.search_bounds_by_pos_for_tests(((DIRECT_LINES_MAX + 65_536) * 2) as u64);
+
+        assert!(left >= DIRECT_LINES_MAX);
+        assert!(right < index.direct_offsets.read().len() + index.extended_offsets.read().len());
+        assert!(right - left < 140_000);
     }
 
     #[test]
