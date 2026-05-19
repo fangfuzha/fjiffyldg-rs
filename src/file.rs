@@ -1,4 +1,4 @@
-use crate::encoding::{detect_encoding, convert_to_utf8, TextEncoding};
+use crate::encoding::{convert_to_utf8, detect_encoding, TextEncoding};
 use crate::error::{FjiffyldgError, Result, UtfMode};
 use crate::line_index::LineIndex;
 use memmap2::Mmap;
@@ -89,7 +89,7 @@ impl FileModel {
 
     fn load_file<P: AsRef<Path>>(&self, path: P, enable_scan: bool) -> Result<()> {
         let path = path.as_ref();
-        
+
         let file = match File::open(path) {
             Ok(f) => f,
             Err(_) => {
@@ -97,7 +97,7 @@ impl FileModel {
                 return Err(FjiffyldgError::FileInaccessible);
             }
         };
-        
+
         let metadata = match file.metadata() {
             Ok(m) => m,
             Err(_) => {
@@ -105,17 +105,17 @@ impl FileModel {
                 return Err(FjiffyldgError::StreamError);
             }
         };
-        
+
         let file_size = metadata.len();
         *self.file_size.write() = file_size;
         *self.file.write() = Some(file);
-        
+
         if file_size == 0 {
             *self.is_loaded.write() = true;
             *self.error_code.write() = 0;
             return Ok(());
         }
-        
+
         if file_size <= USUALLY_IO_SIZE_MAX {
             let mut buffer = Vec::new();
             if let Ok(mut f) = File::open(path) {
@@ -134,14 +134,14 @@ impl FileModel {
                 }
             }
         }
-        
+
         *self.is_loaded.write() = true;
         *self.error_code.write() = 0;
-        
+
         if enable_scan {
             self.scan_lines()?;
         }
-        
+
         Ok(())
     }
 
@@ -150,10 +150,10 @@ impl FileModel {
         if data.is_empty() {
             return Ok(());
         }
-        
+
         let encoding = detect_encoding(&data);
         let mut effective_data = data.clone();
-        
+
         match &encoding {
             TextEncoding::Utf16Le | TextEncoding::Utf16Be => {
                 if let Ok(converted) = convert_to_utf8(&data, &encoding) {
@@ -162,9 +162,10 @@ impl FileModel {
             }
             _ => {}
         }
-        
-        self.line_index.build_from_data(&effective_data, UtfMode::Default);
-        
+
+        self.line_index
+            .build_from_data(&effective_data, UtfMode::Default);
+
         Ok(())
     }
 
@@ -172,92 +173,95 @@ impl FileModel {
         if let Some(ref data) = *self.data.read() {
             return data.clone();
         }
-        
+
         if let Some(ref mmap) = *self.mmap.read() {
             return mmap.to_vec();
         }
-        
+
         Vec::new()
     }
 
     pub fn read_data(&self, pos: i64, mut len: usize) -> Option<Vec<u8>> {
         let file_size = *self.file_size.read() as i64;
-        
+
         if !self.is_loaded() || pos < 0 || pos >= file_size {
             return None;
         }
-        
+
         if len == 0 {
             len = BUFFER_SIZE;
         }
-        
+
         let end_pos = (pos as usize).min(file_size as usize);
         let remaining = file_size as usize - end_pos;
         let actual_len = len.min(remaining);
-        
+
         if let Some(ref data) = *self.data.read() {
             return Some(data[end_pos..end_pos + actual_len].to_vec());
         }
-        
+
         if let Some(ref mmap) = *self.mmap.read() {
             return Some(mmap[end_pos..end_pos + actual_len].to_vec());
         }
-        
+
         None
     }
 
-    pub fn read_line(&self, index: i64, bpos: &mut i64, epos: &mut i64, len: &mut usize) -> Option<Vec<u8>> {
+    pub fn read_line(
+        &self,
+        index: i64,
+        bpos: &mut i64,
+        epos: &mut i64,
+        len: &mut usize,
+    ) -> Option<Vec<u8>> {
         let begin = self.line_index.get_line_pos(index as usize);
         if begin < 0 {
             *len = 0;
             return None;
         }
-        
+
         *bpos = begin;
-        
-        let mut actual_len = *len;
-        if actual_len == 0 {
-            actual_len = BUFFER_SIZE;
+        // 只返回单行内容：结束位置为下一行起始或文件末尾
+        let mut end_pos = *self.file_size.read() as i64;
+        if index + 1 < self.line_index.get_line_count() {
+            let np = self.line_index.get_line_pos((index + 1) as usize);
+            if np >= 0 {
+                end_pos = np;
+            }
         }
-        
-        let mut current_index = index;
-        let mut current_pos = begin;
-        
-        while current_index + 1 < self.line_index.get_line_count() {
-            let next_pos = self.line_index.get_line_pos((current_index + 1) as usize);
-            if next_pos < 0 {
-                break;
-            }
-            
-            let line_len = next_pos - current_pos;
-            if line_len > CRITICAL_LONGLINE_LEN as i64 {
-                break;
-            }
-            
-            if current_pos + line_len > begin + actual_len as i64 {
-                break;
-            }
-            
-            current_index += 1;
-            current_pos = next_pos;
-        }
-        
-        *epos = current_pos;
-        actual_len = (*epos - *bpos) as usize;
+
+        let full_len = if end_pos > begin {
+            (end_pos - begin) as usize
+        } else {
+            0
+        };
+
+        // 如果调用方提供了 len>0，则按该长度截断，否则返回整行
+        let actual_len = if *len == 0 {
+            full_len
+        } else {
+            (*len).min(full_len)
+        };
+
+        *epos = begin + actual_len as i64;
         *len = actual_len;
-        
-        self.read_data(*bpos, actual_len)
+
+        if actual_len == 0 {
+            None
+        } else {
+            self.read_data(*bpos, actual_len)
+        }
     }
 
     pub fn read_to_end_of_line(&self, index: i64, pos: i64, len: &mut usize) -> Option<Vec<u8>> {
         let file_size = *self.file_size.read() as i64;
-        
+
         let line_start = self.line_index.get_line_pos(index as usize);
         if line_start < 0 || pos < line_start || pos >= file_size {
             *len = 0;
             return None;
         }
-        
+
         let mut end = file_size;
         if index + 1 < self.line_index.get_line_count() {
             let next_line = self.line_index.get_line_pos((index + 1) as usize);
@@ -265,20 +269,20 @@ impl FileModel {
                 end = next_line;
             }
         }
-        
+
         if pos > end {
             *len = 0;
             return None;
         }
-        
+
         let mut actual_len = *len;
         if actual_len == 0 {
             actual_len = CRITICAL_LONGLINE_LEN;
         }
-        
+
         actual_len = (actual_len as i64).min(end - pos) as usize;
         *len = actual_len;
-        
+
         self.read_data(pos, actual_len)
     }
 
@@ -323,12 +327,12 @@ pub fn save_file<P: AsRef<Path>>(path: P, data: &[u8]) -> std::result::Result<()
     std::fs::write(path, data)
 }
 
-pub fn append_file<P: AsRef<Path>>(path: P, data: &[u8]) -> std::result::Result<(), std::io::Error> {
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)?;
-    
+pub fn append_file<P: AsRef<Path>>(
+    path: P,
+    data: &[u8],
+) -> std::result::Result<(), std::io::Error> {
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+
     file.write_all(data)?;
     Ok(())
 }
@@ -351,7 +355,7 @@ mod tests {
     fn test_file_model_load() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"hello\nworld\n").unwrap();
-        
+
         let model = FileModel::new();
         assert!(model.load_and_scan_file(temp.path()).is_ok());
         assert_eq!(model.get_line_count(), 3);
@@ -361,10 +365,10 @@ mod tests {
     fn test_read_data() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"hello world").unwrap();
-        
+
         let model = FileModel::new();
         model.load_file_only(temp.path()).unwrap();
-        
+
         let data = model.read_data(0, 5);
         assert_eq!(data, Some(b"hello".to_vec()));
     }
@@ -373,7 +377,7 @@ mod tests {
     fn test_get_file_size() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"test").unwrap();
-        
+
         assert_eq!(get_file_size(temp.path()), 4);
     }
 }
