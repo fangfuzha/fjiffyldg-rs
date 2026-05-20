@@ -26,3 +26,4 @@
 - [Changelog](CHANGELOG_EN.md)
 - [Development TODO](DEVELOPMENT_TODO_EN.md)
 - [Feature Coverage Depth Report](feature_coverage_depth_report.md)
+- [C++ Architecture Design](architecture/cpp_design_en.md)
