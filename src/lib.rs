@@ -415,6 +415,25 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_read_data_clamps_negative_positions_to_start() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"line1\nline2\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadFileOnly(handle, path.as_ptr()), 0);
+
+        let mut len = 5;
+        let data = ffi::ReadFileData(handle, -8, &mut len);
+        assert!(!data.is_null());
+        let data = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), len as usize) };
+        assert_eq!(len, 5);
+        assert_eq!(data, b"line1");
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_read_to_end_of_line_returns_empty_at_line_boundary() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"line1\nline2\n").unwrap();

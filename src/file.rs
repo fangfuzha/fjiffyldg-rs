@@ -628,9 +628,11 @@ impl FileModel {
     pub fn read_data(&self, pos: i64, mut len: usize) -> Option<Vec<u8>> {
         let file_size = *self.file_size.read() as i64;
 
-        if !self.is_loaded() || pos < 0 {
+        if !self.is_loaded() {
             return None;
         }
+
+        let pos = pos.max(0);
 
         if len == 0 {
             len = BUFFER_SIZE;
