@@ -1,10 +1,10 @@
 # 安装 pre-commit 并确保 Node 依赖（Prettier）已安装（Windows PowerShell）
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-	Write-Output "Node.js 未检测到，请先安装 Node.js（>=18）。"
+    Write-Output 'Node.js 未检测到，请先安装 Node.js（>=18）。'
 }
 
 if (-not (Test-Path package.json)) {
-	npm init -y | Out-Null
+    npm init -y | Out-Null
 }
 
 # 使用 npm 安装 dev 依赖
