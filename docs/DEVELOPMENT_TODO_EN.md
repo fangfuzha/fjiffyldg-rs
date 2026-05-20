@@ -65,9 +65,11 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 | Phase 2         | 4     | 4    | 100%     |
 | Phase 3         | 3     | 3    | 100%     |
 | Phase 4         | 5     | 5    | 100%     |
+| Version roadmap | 2     | 0    | 0%       |
 | Release support | 4     | 4    | 100%     |
 | Documentation   | 4     | 3    | 75%      |
 | Open governance | 10    | 7    | 70%      |
+| **Total**       | **35** | **29** | **83%** |
 
 ## Open Governance and Release Engineering Tasks
 
@@ -86,8 +88,39 @@ This checklist is based on Rust API Guidelines, Cargo publishing metadata, docs.
 | Document release and SemVer/ABI rules              | Todo   | Add `docs/release.md` / `docs/release_en.md` for versioning, pre-release checks, packaging, publish dry-run, tags, GitHub Release, docs.rs checks, C ABI compatibility, and yanking                                                                                                |
 | Improve README trust signals                       | Todo   | Add badges or links for CI, crates.io, docs.rs, license, MSRV, contributing, security, changelog, and release status                                                                                                                                                               |
 
+## Version Roadmap and Compatibility Strategy
+
+### Task V.1: Make v1.0 Strictly Match C++ Observable Behavior
+
+**Files:** [docs/功能覆盖深度检查报告.md](docs/功能覆盖深度检查报告.md), [docs/feature_coverage_depth_report.md](docs/feature_coverage_depth_report.md), [tests/](tests/), [include/fjiffyldg.h](include/fjiffyldg.h), [src/ffi.rs](src/ffi.rs)
+
+**Goal:** Establish the first stable release as a trustworthy Rust replacement for the C++ implementation.
+
+**Requirements:**
+
+- Align public C ABI function names, signatures, return values, error codes, null pointer handling, out-of-range handling, empty-file behavior, and other edge cases with the C++ reference implementation.
+- Lock pointer lifetime and output semantics for `ReadFileData*`, `GetFileMappedHuge`, UTF detection, line index queries, and file operation helpers.
+- Build a C++/Rust compatibility matrix and regression tests; require internal route parity only when it affects observable behavior or documented performance guarantees.
+
+**Status:** Todo
+
+### Task V.2: Keep ABI Compatible and Rustify Internals in v1.1+
+
+**Files:** [docs/release.md](docs/release.md), [docs/release_en.md](docs/release_en.md), [CHANGELOG.md](CHANGELOG.md), [CHANGELOG_EN.md](CHANGELOG_EN.md)
+
+**Goal:** After the v1.0 trust baseline is established, improve internals without breaking public ABI behavior.
+
+**Requirements:**
+
+- Use SemVer/ABI rules to distinguish behavior-compatible changes, performance optimizations, and breaking changes.
+- Preserve the v1.0 differential tests when Rustifying threading, resource management, error handling, and performance paths.
+- Add benchmark or compatibility notes for significant internal route changes.
+
+**Status:** Later
+
 ## Remaining Work
 
+- Complete the v1.0 strict C++ observable-behavior compatibility matrix and differential tests.
 - Run real huge-file benchmarks beyond the automated 12 MB Criterion smoke workload.
 - Quantify clone/save/append/concat performance against the C++ implementation.
 - Continue the open governance checklist above.
@@ -101,5 +134,5 @@ This checklist is based on Rust API Guidelines, Cargo publishing metadata, docs.
 - C/C++ header: [include/fjiffyldg.h](include/fjiffyldg.h); run `pwsh -File scripts/check_c_abi.ps1` to verify generation, object compilation, dynamic linking, and smoke execution
 - Large-file benchmark: [benches/large_file.rs](benches/large_file.rs)
 
-**Last updated**: 2026-05-20
+**Last updated**: 2026-05-21
 **Maintainer**: Development team

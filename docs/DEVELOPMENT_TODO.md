@@ -240,10 +240,11 @@
 | 第二阶段 | 4      | 4      | 100%    |
 | 第三阶段 | 3      | 3      | 100%    |
 | 第四阶段 | 5      | 5      | 100%    |
+| 版本路线 | 2      | 0      | 0%      |
 | 发布配套 | 4      | 4      | 100%    |
 | 文档配套 | 4      | 3      | 75%     |
 | 开源治理 | 10     | 7      | 70%     |
-| **总计** | **33** | **29** | **88%** |
+| **总计** | **35** | **29** | **83%** |
 
 ---
 
@@ -372,12 +373,35 @@
 
 ---
 
+## 🧭 版本路线与兼容策略
+
+### ⏳ Task V.1: v1.0 严格对应 C++ 可观察行为
+
+- **文件**：[docs/功能覆盖深度检查报告.md](docs/功能覆盖深度检查报告.md)、[docs/feature_coverage_depth_report.md](docs/feature_coverage_depth_report.md)、[tests/](tests/)、[include/fjiffyldg.h](include/fjiffyldg.h)、[src/ffi.rs](src/ffi.rs)
+- **目标**：第一个正式版本优先建立“Rust 版可可靠替代 C++ 版”的可信基线。
+- **要求**：
+    - 公开 C ABI 的函数名、签名、返回值、错误码、空指针、越界、空文件等边界行为与 C++ 参考实现严格对齐
+    - 锁定 `ReadFileData*`、`GetFileMappedHuge`、UTF 检测、行索引查询和文件操作的指针生命周期与输出语义
+    - 建立 C++/Rust 对照清单与回归测试；内部路线只在影响可观察行为或性能承诺时强制对齐
+- **状态**：⏳ 待完成
+
+### ⏳ Task V.2: v1.1+ 保持 ABI 兼容并逐步 Rust 化
+
+- **文件**：[docs/release.md](docs/release.md)、[docs/release_en.md](docs/release_en.md)、[CHANGELOG.md](CHANGELOG.md)、[CHANGELOG_EN.md](CHANGELOG_EN.md)
+- **目标**：v1.0 可信基线建立后，在不破坏公开 ABI 行为的前提下优化内部实现。
+- **要求**：
+    - 通过 SemVer/ABI 规则区分行为兼容、性能优化和破坏性变化
+    - Rust 化内部线程、资源管理、错误封装和性能路径时，必须保留 v1.0 对照测试
+    - 重大内部路线调整需要补充 benchmark 或兼容性说明
+- **状态**：⏳ 后续执行
+
+---
+
 ## �🎯 建议执行策略
 
-1. **快速赢**（第一周）：完成第一阶段 3 个任务，修复核心功能缺陷
-2. **性能突破**（第二周）：完成第二阶段 4 个任务，实现分块索引和大文件优化
-3. **完整性**（第三周）：完成第三阶段 3 个任务，添加 FFI 和扫描控制
-4. **细节打磨**（第四周）：完成第四阶段 5 个任务，优化边界情况
+1. **v1.0 可信基线**：优先完成 Task V.1，将 C++ 参考实现的公开行为固化为对照清单、回归测试和发布说明
+2. **发布前治理**：并行补齐 O.8、O.9、O.10，确保格式、发布流程、README 信号与严格对应目标一致
+3. **v1.1+ 内部优化**：完成 Task V.2，在 ABI 行为不破坏的前提下逐步 Rust 化内部路线并补充 benchmark
 
 ---
 
@@ -403,5 +427,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与链接运行 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档、C API 全接口参考、开源治理 TODO、CI、贡献指南、安全政策、变更日志、Cargo 发布元数据、Issue/PR 模板、依赖自动更新工作流、标签发布工作流）
+**最后更新**：2026-05-21（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与链接运行 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档、C API 全接口参考、开源治理 TODO、CI、贡献指南、安全政策、变更日志、Cargo 发布元数据、Issue/PR 模板、依赖自动更新工作流、标签发布工作流、v1.0 严格对应与 v1.1+ Rust 化路线）
 **维护者**：开发团队
