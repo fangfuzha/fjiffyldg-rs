@@ -270,6 +270,14 @@ impl FileModel {
 
     /// 根据字节位置查找所在行的索引
     pub fn get_line_by_pos(&self, pos: i64) -> i64 {
+        if !self.is_loaded() {
+            return -1;
+        }
+
+        if pos > *self.file_size.read() as i64 {
+            return -1;
+        }
+
         self.line_index.get_line_by_pos(pos)
     }
 

@@ -353,6 +353,46 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_load_file_only_reports_scan_not_started() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"line1\nline2\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadFileOnly(handle, path.as_ptr()), 0);
+
+        assert_eq!(ffi::GetFileIsLoaded(handle), 0);
+        assert_eq!(ffi::GetFileLineCount(handle), 0);
+        assert_eq!(ffi::GetFileLinePos(handle, 0), -1);
+        assert_eq!(ffi::GetFileLineLength(handle, 0), -1);
+        assert_eq!(ffi::GetFileLineIndex(handle, 0), -1);
+
+        let mut len = 5;
+        let data = ffi::ReadFileData(handle, 0, &mut len);
+        assert!(!data.is_null());
+        let data = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), len as usize) };
+        assert_eq!(data, b"line1");
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
+    fn test_c_ffi_line_index_rejects_positions_past_file_end() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"line1\nline2\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        assert_eq!(ffi::GetFileLineIndex(handle, 12), 2);
+        assert_eq!(ffi::GetFileLineIndex(handle, 13), -1);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_restart_scan_distinguishes_auto_detect_from_default() {
         let mut temp = NamedTempFile::new().unwrap();
         let mut data = vec![0xFF, 0xFE];

@@ -357,6 +357,10 @@ impl LineIndex {
         let ext_offs = self.extended_offsets.read();
         let total_offsets = dir_offs.len() + ext_offs.len();
 
+        if total_offsets == 0 {
+            return -1;
+        }
+
         left = left.min(total_offsets);
         right = right.min(total_offsets);
 
