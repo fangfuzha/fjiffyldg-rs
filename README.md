@@ -8,6 +8,7 @@
 仓库根目录仅保留作为导航入口和平台识别的元数据文件（如 `Cargo.toml`、`LICENSE`、`.github/` 等）。
 
 ## ✨ 核心特性
+
 # Fjiffyldg (Rust)
 
 [English](README_EN.md)
