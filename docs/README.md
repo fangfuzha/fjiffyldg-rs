@@ -14,6 +14,7 @@
 - [变更日志](CHANGELOG.md)
 - [开发 TODO](DEVELOPMENT_TODO.md)
 - [功能覆盖深度检查报告](feature_coverage_depth_report.md)
+- [C++ 版本总体设计](architecture/cpp_design.md)
 
 ## English Docs
 
