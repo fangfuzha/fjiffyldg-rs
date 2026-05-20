@@ -130,7 +130,7 @@ fjiffyldg-rs/
 
 ## 🤝 贡献
 
-欢迎提交 Issue 和 Pull Request。仓库提供 bug、feature、C ABI 和性能回归模板，并通过 GitHub Actions 运行格式、Clippy、测试、文档、benchmark 编译、C/C++ ABI smoke 和发布 dry-run。参与前建议阅读 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)，安全问题请参考 [docs/SECURITY.md](docs/SECURITY.md)，版本变化见 [docs/CHANGELOG.md](docs/CHANGELOG.md)，开发计划见 [docs/DEVELOPMENT_TODO.md](docs/DEVELOPMENT_TODO.md)，发布流程见 [docs/release.md](docs/release.md)。
+欢迎提交 Issue 和 Pull Request。仓库提供 bug、feature、C ABI 和性能回归模板，并通过 GitHub Actions 运行格式、Clippy、测试、文档、benchmark 编译、C/C++ ABI smoke 和发布 dry-run。参与前建议阅读 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)、[docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md)，安全问题请参考 [docs/SECURITY.md](docs/SECURITY.md)，版本变化见 [docs/CHANGELOG.md](docs/CHANGELOG.md)，开发计划见 [docs/DEVELOPMENT_TODO.md](docs/DEVELOPMENT_TODO.md)，发布流程见 [docs/release.md](docs/release.md)。
 
 ## 📞 联系方式
 
