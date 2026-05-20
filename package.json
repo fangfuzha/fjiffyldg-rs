@@ -1,0 +1,11 @@
+{
+  "name": "fjiffyldg-rs-formatting",
+  "private": true,
+  "devDependencies": {
+    "prettier": "^3.0.0"
+  },
+  "scripts": {
+    "format": "prettier --write \"**/*.md\"",
+    "check-format": "prettier --check \"**/*.md\""
+  }
+}

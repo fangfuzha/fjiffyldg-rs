@@ -24,6 +24,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install JS dependencies
+        run: npm ci || npm install
+
+      - name: Check Markdown formatting (Prettier)
+        run: npm run check-format
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
