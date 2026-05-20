@@ -1,6 +1,6 @@
 # Security Policy
 
-[中文文档](SECURITY.md)
+[Chinese](SECURITY.md)
 
 ## Supported Versions
 

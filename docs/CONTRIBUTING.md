@@ -28,11 +28,11 @@ pwsh -File scripts/check_c_abi.ps1
 cargo publish --dry-run
 ```
 
-其中 `scripts/check_c_abi.ps1` 会验证 [include/fjiffyldg.h](include/fjiffyldg.h) 与 Rust FFI 源码一致，构建 release 动态库，并链接运行 C/C++ smoke。
+其中 `scripts/check_c_abi.ps1` 会验证 [include/fjiffyldg.h](../include/fjiffyldg.h) 与 Rust FFI 源码一致，构建 release 动态库，并链接运行 C/C++ smoke。
 
 ## 修改 C API 的规则
 
-- 不要手工编辑 [include/fjiffyldg.h](include/fjiffyldg.h)。修改 [src/ffi.rs](src/ffi.rs) 或 [cbindgen.toml](cbindgen.toml) 后运行：
+- 不要手工编辑 [include/fjiffyldg.h](../include/fjiffyldg.h)。修改 [src/ffi.rs](../src/ffi.rs) 或 [cbindgen.toml](../cbindgen.toml) 后运行：
 
 ```powershell
 pwsh -File scripts/generate_c_header.ps1
@@ -40,8 +40,8 @@ pwsh -File scripts/check_c_abi.ps1
 ```
 
 - 修改导出函数签名、错误码、指针生命周期或缓冲区所有权时，需要同步更新：
-    - [docs/c_api_usage.md](docs/c_api_usage.md)
-    - [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
+    - [c_api_usage.md](c_api_usage.md)
+    - [c_api_usage_en.md](c_api_usage_en.md)
     - [DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md) / [DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md) 中相关状态
 - C ABI 变更可能是破坏性变更，提交说明中应明确标注。
 

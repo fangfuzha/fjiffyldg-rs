@@ -1,6 +1,6 @@
 # Changelog
 
-[中文文档](CHANGELOG.md)
+[Chinese](CHANGELOG.md)
 
 This project follows the structure of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and will follow Semantic Versioning after stable releases.
 

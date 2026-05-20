@@ -30,7 +30,7 @@ cargo publish --dry-run --allow-dirty --registry crates-io
 
 ## 发布步骤
 
-1. 更新 [CHANGELOG.md](../CHANGELOG.md) 和 [CHANGELOG_EN.md](../CHANGELOG_EN.md)，记录本次版本变化。
+1. 更新 [CHANGELOG.md](CHANGELOG.md) 和 [CHANGELOG_EN.md](CHANGELOG_EN.md)，记录本次版本变化。
 2. 确认 [include/fjiffyldg.h](../include/fjiffyldg.h) 已由 `cbindgen` 重新生成并通过 `scripts/check_c_abi.ps1` 验证。
 3. 确认 [docs/CONTRIBUTING.md](CONTRIBUTING.md)、[docs/SECURITY.md](SECURITY.md) 和 [docs/DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md) 中没有与发布相冲突的待办事项。
 4. 创建版本 tag，例如 `v0.1.1`。

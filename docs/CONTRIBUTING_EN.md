@@ -1,6 +1,6 @@
 # Contributing Guide
 
-[中文文档](CONTRIBUTING.md)
+[Chinese](CONTRIBUTING.md)
 
 Thank you for considering a contribution to the Rust version of Fjiffyldg. This guide describes the recommended development workflow and pre-submission checks for this repository.
 
@@ -28,11 +28,11 @@ pwsh -File scripts/check_c_abi.ps1
 cargo publish --dry-run
 ```
 
-`scripts/check_c_abi.ps1` verifies that [include/fjiffyldg.h](include/fjiffyldg.h) matches the Rust FFI source, builds the release dynamic library, and links/runs C and C++ smoke executables.
+`scripts/check_c_abi.ps1` verifies that [include/fjiffyldg.h](../include/fjiffyldg.h) matches the Rust FFI source, builds the release dynamic library, and links/runs C and C++ smoke executables.
 
 ## Rules for C API Changes
 
-- Do not edit [include/fjiffyldg.h](include/fjiffyldg.h) by hand. After changing [src/ffi.rs](src/ffi.rs) or [cbindgen.toml](cbindgen.toml), run:
+- Do not edit [include/fjiffyldg.h](../include/fjiffyldg.h) by hand. After changing [src/ffi.rs](../src/ffi.rs) or [cbindgen.toml](../cbindgen.toml), run:
 
 ```powershell
 pwsh -File scripts/generate_c_header.ps1
@@ -40,8 +40,8 @@ pwsh -File scripts/check_c_abi.ps1
 ```
 
 - When changing exported signatures, error codes, pointer lifetimes, or buffer ownership rules, update:
-    - [docs/c_api_usage.md](docs/c_api_usage.md)
-    - [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
+    - [c_api_usage.md](c_api_usage.md)
+    - [c_api_usage_en.md](c_api_usage_en.md)
     - Related status entries in [DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md) / [DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md)
 - C ABI changes can be breaking changes. Call this out explicitly in the commit or pull request description.
 

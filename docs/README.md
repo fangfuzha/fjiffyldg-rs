@@ -13,17 +13,5 @@
 - [安全政策](SECURITY.md)
 - [变更日志](CHANGELOG.md)
 - [开发 TODO](DEVELOPMENT_TODO.md)
-- [功能覆盖深度检查报告](feature_coverage_depth_report.md)
+- [功能覆盖深度检查报告](功能覆盖深度检查报告.md)
 - [C++ 版本总体设计](architecture/cpp_design.md)
-
-## English Docs
-
-- [C API Usage Guide](c_api_usage_en.md)
-- [Release Guide](release_en.md)
-- [Code of Conduct](CODE_OF_CONDUCT_EN.md)
-- [Contributing Guide](CONTRIBUTING_EN.md)
-- [Security Policy](SECURITY_EN.md)
-- [Changelog](CHANGELOG_EN.md)
-- [Development TODO](DEVELOPMENT_TODO_EN.md)
-- [Feature Coverage Depth Report](feature_coverage_depth_report.md)
-- [C++ Architecture Design](architecture/cpp_design_en.md)

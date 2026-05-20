@@ -1,6 +1,6 @@
 # C API Usage Guide
 
-[中文文档](c_api_usage.md)
+[Chinese](c_api_usage.md)
 
 This guide explains how to use the Fjiffyldg C ABI from C or C++ projects. The public header is generated from the Rust FFI source with `cbindgen` and should not be edited manually.
 

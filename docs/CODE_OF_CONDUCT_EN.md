@@ -1,6 +1,6 @@
 # Code of Conduct
 
-[中文文档](CODE_OF_CONDUCT.md)
+[Chinese](CODE_OF_CONDUCT.md)
 
 This repository aims to provide a friendly, respectful, and safe collaboration environment for everyone. This policy applies to issues, pull requests, discussions, comments, code review, and any public communication related to the repository.
 
