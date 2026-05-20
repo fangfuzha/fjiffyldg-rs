@@ -40,9 +40,9 @@ pwsh -File scripts/check_c_abi.ps1
 ```
 
 - 修改导出函数签名、错误码、指针生命周期或缓冲区所有权时，需要同步更新：
-  - [docs/c_api_usage.md](docs/c_api_usage.md)
-  - [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
-  - [DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md) / [DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md) 中相关状态
+    - [docs/c_api_usage.md](docs/c_api_usage.md)
+    - [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
+    - [DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md) / [DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md) 中相关状态
 - C ABI 变更可能是破坏性变更，提交说明中应明确标注。
 
 ## 文档同步

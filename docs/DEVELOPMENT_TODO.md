@@ -15,17 +15,17 @@
 - **影响**：Windows 文本文件行长度偏差 1 字节
 - **修复方案**：
 
-  ```rust
-  // 当前（错误）
-  let len = next_pos - current_pos - 1;
+    ```rust
+    // 当前（错误）
+    let len = next_pos - current_pos - 1;
 
-  // 应改为
-  let len = if data[next_pos - 2..next_pos] == [b'\r', b'\n'] {
-      next_pos - current_pos - 2
-  } else {
-      next_pos - current_pos - 1
-  };
-  ```
+    // 应改为
+    let len = if data[next_pos - 2..next_pos] == [b'\r', b'\n'] {
+        next_pos - current_pos - 2
+    } else {
+        next_pos - current_pos - 1
+    };
+    ```
 
 - **测试**：已添加 CRLF、UTF-16LE/BE、UTF-32LE/BE 行扫描单元测试
 - **状态**：✅ 已完成
@@ -38,9 +38,9 @@
 - **问题**：`UtfMode::Utf32Le/Utf32Be` 已定义但 `detect_encoding()` 未检测
 - **影响**：无法识别 UTF-32 编码文件
 - **修复方案**：
-  - 在 `detect_encoding()` 中添加 UTF-32 BOM 检测
-  - UTF-32LE BOM: `0xFF 0xFE 0x00 0x00`
-  - UTF-32BE BOM: `0x00 0x00 0xFE 0xFF`
+    - 在 `detect_encoding()` 中添加 UTF-32 BOM 检测
+    - UTF-32LE BOM: `0xFF 0xFE 0x00 0x00`
+    - UTF-32BE BOM: `0x00 0x00 0xFE 0xFF`
 - **测试**：添加 UTF-32 BOM 检测单元测试
 - **状态**：✅ 已完成
 
@@ -52,16 +52,16 @@
 - **问题**：C++ 版本支持重新扫描指定 offset 和 UTF 模式，Rust 版本缺失
 - **影响**：无法重新扫描文件或更改编码模式
 - **修复方案**：
-  ```rust
-  pub fn restart_scan(&mut self, offset: u64, utf_mode: UtfMode) -> Result<(), FjiffyldgError> {
-      // 停止当前扫描
-      self.stop_scan();
-      // 重置扫描状态
-      self.line_index.reset();
-      // 从指定 offset 重新扫描
-      self.start_background_scan(offset, utf_mode)
-  }
-  ```
+    ```rust
+    pub fn restart_scan(&mut self, offset: u64, utf_mode: UtfMode) -> Result<(), FjiffyldgError> {
+        // 停止当前扫描
+        self.stop_scan();
+        // 重置扫描状态
+        self.line_index.reset();
+        // 从指定 offset 重新扫描
+        self.start_background_scan(offset, utf_mode)
+    }
+    ```
 - **测试**：添加重新扫描功能测试
 - **状态**：✅ 已完成
 
@@ -75,9 +75,9 @@
 - **问题**：`chunks` 字段定义了但 `build_from_data()` 未填充，查询函数未使用
 - **影响**：>100 万行文件定位性能从 `O(log n)` 退化到 `O(n)`
 - **修复方案**：
-  1. 在 `build_from_data()` 中填充 `chunks` 向量
-  2. 修改 `get_line_pos()` 使用三层索引查询
-  3. 添加分块索引的二分查找逻辑
+    1. 在 `build_from_data()` 中填充 `chunks` 向量
+    2. 修改 `get_line_pos()` 使用三层索引查询
+    3. 添加分块索引的二分查找逻辑
 - **测试**：已添加百万行后续偏移保存、chunk 填充、chunk/overstep 溢出记录、按位置与按行号查询范围裁剪单元测试
 - **状态**：✅ 已完成（2026-05-20；Rust 保留完整偏移数组以保证 O(1) 精确读取，同时通过 chunk/overstep 裁剪行号与位置查询范围）
 - **复杂度**：高
@@ -91,13 +91,13 @@
 - **影响**：即使实现分块索引，容量也严重不足
 - **修复方案**：
 
-  ```rust
-  // 当前（错误）
-  const CHUNK_COUNT_MAX: usize = 8192;
+    ```rust
+    // 当前（错误）
+    const CHUNK_COUNT_MAX: usize = 8192;
 
-  // 应改为
-  const CHUNK_COUNT_MAX: usize = 8_388_608;
-  ```
+    // 应改为
+    const CHUNK_COUNT_MAX: usize = 8_388_608;
+    ```
 
 - **测试**：验证超大文件分块容量
 - **状态**：✅ 已完成
@@ -110,10 +110,10 @@
 - **问题**：仅一次映射整个文件，超大文件受限地址空间
 - **影响**：无法处理超过地址空间限制的文件
 - **修复方案**：
-  - 实现 1GB 分块映射（`MMAP_FILECHUNK`）
-  - 维护当前 mmap 窗口偏移与窗口大小
-  - 在读取时动态切换分块
-  - 后台扫描按 mmap 窗口顺序推进，并保留窗口尾部字节处理跨窗口换行
+    - 实现 1GB 分块映射（`MMAP_FILECHUNK`）
+    - 维护当前 mmap 窗口偏移与窗口大小
+    - 在读取时动态切换分块
+    - 后台扫描按 mmap 窗口顺序推进，并保留窗口尾部字节处理跨窗口换行
 - **测试**：已添加 `test_read_data_remaps_window_for_far_mmap_offset`、`test_scan_uses_all_mmap_windows`、`test_windowed_scan_supports_unaligned_restart_offset` 与 `test_windowed_scan_preserves_crlf_across_boundary`，通过小窗口注入验证跨窗口读取、扫描、非对齐重扫偏移与 CRLF 边界
 - **状态**：✅ 已完成（2026-05-20）
 - **复杂度**：高
@@ -126,8 +126,8 @@
 - **问题**：`clone_file`/`save_file` 等未对大文件使用 mmap
 - **影响**：大文件操作性能不佳
 - **修复方案**：
-  - 对 >10MB 文件使用 mmap 加速 copy
-  - 使用 `memcpy` 或 `sendfile` 优化
+    - 对 >10MB 文件使用 mmap 加速 copy
+    - 使用 `memcpy` 或 `sendfile` 优化
 - **测试**：已添加 `test_append_file_creates_missing_target`、`test_save_file_large_buffer_round_trips`、`test_clone_file_large_input_round_trips`、`test_concatenate_files_large_input_appends_to_output`
 - **状态**：✅ 已完成（2026-05-19）
 
@@ -152,9 +152,9 @@
 - **问题**：后台扫描启动后无法主动取消
 - **影响**：大文件扫描期间，重新加载或退出只能等待扫描自然结束
 - **修复方案**：
-  - 为扫描任务增加取消标记
-  - 在行扫描循环中周期性检查取消标记
-  - 取消时保证索引状态一致，并返回可诊断状态
+    - 为扫描任务增加取消标记
+    - 在行扫描循环中周期性检查取消标记
+    - 取消时保证索引状态一致，并返回可诊断状态
 - **测试**：已添加 `test_cancelled_build_leaves_empty_scanned_index`、`test_request_stop_scan_clears_index_after_background_scan`、`test_c_ffi_backstage_request_stop_clears_index`
 - **状态**：✅ 已完成（2026-05-19）
 
@@ -179,8 +179,8 @@
 - **问题**：后台扫描克隆整个文件数据，大文件多一份内存
 - **影响**：内存占用翻倍
 - **修复方案**：
-  - 使用 `Arc<[u8]>` 共享数据而非克隆
-  - 或使用引用计数的内存映射
+    - 使用 `Arc<[u8]>` 共享数据而非克隆
+    - 或使用引用计数的内存映射
 - **测试**：已添加 `test_scan_buffer_reuses_small_file_storage`、`test_scan_buffer_reuses_mmap_storage`
 - **状态**：✅ 已完成（2026-05-19）
 
@@ -192,8 +192,8 @@
 - **问题**：`overstep_pos` 字段定义但未使用，极端超大文件会丢失行信息
 - **影响**：极端超大文件的按位置查询无法正确裁剪到 chunk 溢出段
 - **修复方案**：
-  - 在 `build_from_data()` 中填充 `overstep_pos`
-  - 在查询函数中使用溢出信息
+    - 在 `build_from_data()` 中填充 `overstep_pos`
+    - 在查询函数中使用溢出信息
 - **测试**：已添加 `test_overstep_position_records_first_chunk_overflow`、`test_overstep_position_narrows_search_after_last_chunk`
 - **状态**：✅ 已完成（2026-05-19）
 
