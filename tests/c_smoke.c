@@ -1,6 +1,5 @@
 #include "fjiffyldg.h"
 
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,9 +12,9 @@
 int fjiffyldg_c_header_smoke(const char* path) {
   fjiffyldg_t* handle = fjiffyldg_create();
   uint32_t len = 5;
-  int64_t index = 0;
-  int64_t begin = 0;
-  int64_t end = 0;
+  long long index = 0;
+  long long begin = 0;
+  long long end = 0;
   const char* cursor = "hello";
   long long mapped_len = 0;
   const char* mapped = 0;
