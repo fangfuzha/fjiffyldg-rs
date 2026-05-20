@@ -39,18 +39,18 @@
 
 ## 3. File Loading and I/O
 
-| C++ feature                          | Rust status              | Notes                                                                           |
-| ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------- |
-| Small-file direct buffer             | Done                     | Files up to 10 MB use memory buffers                                            |
-| Large-file mmap                      | Done                     | Uses windowed mmap access                                                       |
-| 1 GB mmap chunks                     | Done                     | Read and background scan both advance through mmap windows                      |
-| `BUFFER_SIZE` 128 KB default         | Done                     | Defined and used                                                                |
-| `GetFileMappedHuge` internal pointer | Done                     | FFI returns a handle-owned real mmap pointer                                    |
-| Large clone/save/append/concat paths | Done                     | Uses mmap or large buffered paths                                               |
-| `FILEBLOCK` 1 MB stream block        | Intentionally not reused | Rust keeps a simpler full small-file buffer design                              |
-| C++ header RAII wrapper              | Done                     | cbindgen configuration emits the lightweight `Fjiffyldg::Fjiffyldg` wrapper     |
+| C++ feature                          | Rust status              | Notes                                                                                                     |
+| ------------------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Small-file direct buffer             | Done                     | Files up to 10 MB use memory buffers                                                                      |
+| Large-file mmap                      | Done                     | Uses windowed mmap access                                                                                 |
+| 1 GB mmap chunks                     | Done                     | Read and background scan both advance through mmap windows                                                |
+| `BUFFER_SIZE` 128 KB default         | Done                     | Defined and used                                                                                          |
+| `GetFileMappedHuge` internal pointer | Done                     | FFI returns a handle-owned real mmap pointer                                                              |
+| Large clone/save/append/concat paths | Done                     | Uses mmap or large buffered paths                                                                         |
+| `FILEBLOCK` 1 MB stream block        | Intentionally not reused | Rust keeps a simpler full small-file buffer design                                                        |
+| C++ header RAII wrapper              | Done                     | cbindgen configuration emits the lightweight `Fjiffyldg::Fjiffyldg` wrapper                               |
 | C API usage documentation            | Done                     | Bilingual guides cover generation, build, link, lifetime, maintenance flows, and a complete API reference |
-| C/C++ link-and-run smoke              | Done                     | The check script builds the release dynamic library, links C/C++ smoke, and runs it |
+| C/C++ link-and-run smoke             | Done                     | The check script builds the release dynamic library, links C/C++ smoke, and runs it                       |
 
 ## 4. Line Index System
 
@@ -106,6 +106,7 @@ The Rust version maps C-compatible error codes while also exposing richer Rust e
 | -------- | --------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
 | Medium   | Real huge-file benchmark validation           | Automated benchmark currently uses an approximately 12 MB temporary file | Run Criterion and/or external benchmarking on real very large files   |
 | Low      | clone/save/append/concat benchmark comparison | Performance has not yet been quantified against the C++ version          | Add I/O benchmark cases and compare with the reference implementation |
+
 ## 9. Conclusion
 
 The Rust version covers the common file loading, scanning, line positioning, encoding detection, and reading scenarios from the C++ reference implementation. Recent work also aligned cbindgen-generated C/C++ ABI packaging, bilingual C API documentation with complete interface coverage, `GetFileMappedHuge` mmap pointer behavior, windowed mmap scanning, and large-file helper paths.

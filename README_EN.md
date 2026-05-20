@@ -87,7 +87,7 @@ fjiffyldg-rs/
 ├── benches/            # Criterion benchmarks
 ├── scripts/            # Release and validation scripts
 ├── tests/              # Integration and C/C++ ABI smoke inputs
-├── docs/               # Coverage reports and project documentation
+├── docs/               # Coverage reports, TODOs, release docs, and project documentation
 ├── Cargo.toml
 ├── README.md           # Chinese README
 └── README_EN.md        # English README
@@ -105,7 +105,7 @@ fjiffyldg-rs/
 
 ## Contributing
 
-Issues and pull requests are welcome. The repository provides templates for bugs, features, C ABI issues, and performance regressions, and GitHub Actions runs formatting, Clippy, tests, documentation, benchmark compilation, C/C++ ABI smoke, and publish dry-run. Read [CONTRIBUTING_EN.md](CONTRIBUTING_EN.md) before contributing, see [SECURITY_EN.md](SECURITY_EN.md) for security reports, and see [CHANGELOG_EN.md](CHANGELOG_EN.md) for release history.
+Issues and pull requests are welcome. The repository provides templates for bugs, features, C ABI issues, and performance regressions, and GitHub Actions runs formatting, Clippy, tests, documentation, benchmark compilation, C/C++ ABI smoke, and publish dry-run. Read [docs/CONTRIBUTING_EN.md](docs/CONTRIBUTING_EN.md) before contributing, see [docs/SECURITY_EN.md](docs/SECURITY_EN.md) for security reports, see [docs/CHANGELOG_EN.md](docs/CHANGELOG_EN.md) for release history, and see [docs/DEVELOPMENT_TODO_EN.md](docs/DEVELOPMENT_TODO_EN.md) for the roadmap.
 
 ## Contact
 

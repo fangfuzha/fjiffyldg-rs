@@ -187,59 +187,59 @@ if (mapped != 0) {
 
 ### 9.1 句柄管理
 
-| 接口 | 签名 | 参数 | 返回值 | 生命周期与注意事项 |
-| ---- | ---- | ---- | ------ | ------------------ |
-| `fjiffyldg_create` | `fjiffyldg_ptr fjiffyldg_create(void)` | 无 | 成功返回不透明句柄；失败返回空指针 | 返回的句柄由调用方持有，必须传给 `fjiffyldg_clear` 释放 |
-| `fjiffyldg_clear` | `void fjiffyldg_clear(fjiffyldg_ptr fm)` | `fm`：待释放句柄，可为空 | 无 | 释放文件模型、读取缓冲区和 huge mmap；调用后不得继续使用该句柄 |
+| 接口               | 签名                                     | 参数                     | 返回值                             | 生命周期与注意事项                                             |
+| ------------------ | ---------------------------------------- | ------------------------ | ---------------------------------- | -------------------------------------------------------------- |
+| `fjiffyldg_create` | `fjiffyldg_ptr fjiffyldg_create(void)`   | 无                       | 成功返回不透明句柄；失败返回空指针 | 返回的句柄由调用方持有，必须传给 `fjiffyldg_clear` 释放        |
+| `fjiffyldg_clear`  | `void fjiffyldg_clear(fjiffyldg_ptr fm)` | `fm`：待释放句柄，可为空 | 无                                 | 释放文件模型、读取缓冲区和 huge mmap；调用后不得继续使用该句柄 |
 
 ### 9.2 加载、扫描和扫描控制
 
-| 接口 | 签名 | 参数 | 返回值 | 生命周期与注意事项 |
-| ---- | ---- | ---- | ------ | ------------------ |
-| `LoadAndScanFile` | `int LoadAndScanFile(fjiffyldg_ptr fm, const char *name)` | `fm`：句柄；`name`：以 NUL 结尾的路径字符串 | `0` 成功；非 `0` 为错误码 | 加载文件并启动后台行扫描；行查询前可调用 `WaitFileScanTaskFinished` 等待完整索引 |
-| `LoadFileOnly` | `int LoadFileOnly(fjiffyldg_ptr fm, const char *name)` | `fm`：句柄；`name`：路径字符串 | `0` 成功；非 `0` 为错误码 | 只加载文件，不启动行扫描；适合只做按字节读取的场景 |
-| `GetFileIsLoaded` | `int GetFileIsLoaded(fjiffyldg_ptr fm)` | `fm`：句柄 | `0` 表示已加载且可用；非 `0` 表示未加载或句柄无效 | 该接口沿用错误码语义，不是布尔 true/false |
-| `RestartScanFile` | `void RestartScanFile(fjiffyldg_ptr fm, const char *name, long long offset, int utf)` | `fm`：句柄；`name`：可用于重新加载/扫描的路径；`offset`：扫描起始字节；`utf`：UTF 模式编号 | 无 | 会停止当前扫描并从指定偏移重建索引；无效句柄或路径会被忽略 |
-| `WaitFileScanTaskFinished` | `void WaitFileScanTaskFinished(fjiffyldg_ptr fm)` | `fm`：句柄 | 无 | 阻塞到后台扫描结束；空句柄直接返回 |
-| `BackstageRequestStop` | `void BackstageRequestStop(fjiffyldg_ptr fm)` | `fm`：句柄 | 无 | 请求停止后台扫描并清空当前行索引；适合重新加载或退出前调用 |
+| 接口                       | 签名                                                                                  | 参数                                                                                       | 返回值                                            | 生命周期与注意事项                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `LoadAndScanFile`          | `int LoadAndScanFile(fjiffyldg_ptr fm, const char *name)`                             | `fm`：句柄；`name`：以 NUL 结尾的路径字符串                                                | `0` 成功；非 `0` 为错误码                         | 加载文件并启动后台行扫描；行查询前可调用 `WaitFileScanTaskFinished` 等待完整索引 |
+| `LoadFileOnly`             | `int LoadFileOnly(fjiffyldg_ptr fm, const char *name)`                                | `fm`：句柄；`name`：路径字符串                                                             | `0` 成功；非 `0` 为错误码                         | 只加载文件，不启动行扫描；适合只做按字节读取的场景                               |
+| `GetFileIsLoaded`          | `int GetFileIsLoaded(fjiffyldg_ptr fm)`                                               | `fm`：句柄                                                                                 | `0` 表示已加载且可用；非 `0` 表示未加载或句柄无效 | 该接口沿用错误码语义，不是布尔 true/false                                        |
+| `RestartScanFile`          | `void RestartScanFile(fjiffyldg_ptr fm, const char *name, long long offset, int utf)` | `fm`：句柄；`name`：可用于重新加载/扫描的路径；`offset`：扫描起始字节；`utf`：UTF 模式编号 | 无                                                | 会停止当前扫描并从指定偏移重建索引；无效句柄或路径会被忽略                       |
+| `WaitFileScanTaskFinished` | `void WaitFileScanTaskFinished(fjiffyldg_ptr fm)`                                     | `fm`：句柄                                                                                 | 无                                                | 阻塞到后台扫描结束；空句柄直接返回                                               |
+| `BackstageRequestStop`     | `void BackstageRequestStop(fjiffyldg_ptr fm)`                                         | `fm`：句柄                                                                                 | 无                                                | 请求停止后台扫描并清空当前行索引；适合重新加载或退出前调用                       |
 
 ### 9.3 行索引查询
 
-| 接口 | 签名 | 参数 | 返回值 | 生命周期与注意事项 |
-| ---- | ---- | ---- | ------ | ------------------ |
-| `GetFileLineCount` | `long long GetFileLineCount(fjiffyldg_ptr fm)` | `fm`：句柄 | 行数；失败返回 `-1` | 后台扫描未完成时可能只反映已扫描范围 |
-| `GetFileLinePos` | `long long GetFileLinePos(fjiffyldg_ptr fm, long long index)` | `fm`：句柄；`index`：0 起始行号 | 行起始字节偏移；失败或越界返回 `-1` | 偏移基于原始文件字节，不是字符数 |
-| `GetFileLineLength` | `long long GetFileLineLength(fjiffyldg_ptr fm, long long index)` | `fm`：句柄；`index`：0 起始行号 | 行内容长度；失败或越界返回 `-1` | 长度不包含 `\n` 或 `\r\n` 行尾 |
-| `GetFileLineIndex` | `long long GetFileLineIndex(fjiffyldg_ptr fm, long long pos)` | `fm`：句柄；`pos`：字节偏移 | 所在行号；失败或越界返回 `-1` | 位置查询使用字节偏移；UTF 文本也不按字符计数 |
+| 接口                | 签名                                                             | 参数                            | 返回值                              | 生命周期与注意事项                           |
+| ------------------- | ---------------------------------------------------------------- | ------------------------------- | ----------------------------------- | -------------------------------------------- |
+| `GetFileLineCount`  | `long long GetFileLineCount(fjiffyldg_ptr fm)`                   | `fm`：句柄                      | 行数；失败返回 `-1`                 | 后台扫描未完成时可能只反映已扫描范围         |
+| `GetFileLinePos`    | `long long GetFileLinePos(fjiffyldg_ptr fm, long long index)`    | `fm`：句柄；`index`：0 起始行号 | 行起始字节偏移；失败或越界返回 `-1` | 偏移基于原始文件字节，不是字符数             |
+| `GetFileLineLength` | `long long GetFileLineLength(fjiffyldg_ptr fm, long long index)` | `fm`：句柄；`index`：0 起始行号 | 行内容长度；失败或越界返回 `-1`     | 长度不包含 `\n` 或 `\r\n` 行尾               |
+| `GetFileLineIndex`  | `long long GetFileLineIndex(fjiffyldg_ptr fm, long long pos)`    | `fm`：句柄；`pos`：字节偏移     | 所在行号；失败或越界返回 `-1`       | 位置查询使用字节偏移；UTF 文本也不按字符计数 |
 
 ### 9.4 读取和 mmap 缓冲区
 
-| 接口 | 签名 | 参数 | 返回值 | 生命周期与注意事项 |
-| ---- | ---- | ---- | ------ | ------------------ |
-| `ReadFileData` | `const char *ReadFileData(fjiffyldg_ptr fm, long long pos, unsigned int *len)` | `fm`：句柄；`pos`：起始字节；`len`：输入最大读取长度、输出实际长度 | 成功返回内部缓冲区指针；失败返回空指针 | 指针由句柄持有，下一次读取可能覆盖；调用方需要长期保存时必须复制 |
-| `ReadFileDataLLineCut` | `const char *ReadFileDataLLineCut(fjiffyldg_ptr fm, long long *index, long long *bpos, long long *epos, unsigned int *len)` | `index`：输入/输出行号；`bpos`/`epos`：输入/输出读取边界；`len`：输入/输出长度 | 成功返回内部缓冲区指针；失败返回空指针 | 对短行批量读取，对超长行按 4KB 语义截断；输出参数会被推进 |
-| `ReadFileDataEndOfLine` | `const char *ReadFileDataEndOfLine(fjiffyldg_ptr fm, long long index, long long pos, unsigned int *len)` | `index`：行号；`pos`：行内或文件字节位置；`len`：输入/输出长度 | 成功返回内部缓冲区指针；失败返回空指针 | 从指定位置读取到当前行末尾；返回指针遵循内部缓冲区生命周期 |
-| `GetFileMappedHuge` | `const char *GetFileMappedHuge(fjiffyldg_ptr fm, const char *fileName, long long *bufferSize)` | `fm`：句柄；`fileName`：路径；`bufferSize`：输出映射大小 | 成功返回只读 mmap 指针；失败返回空指针并将大小置 0 | 指针有效期到 `ClearHugeBuffer`、下一次 `GetFileMappedHuge` 或 `fjiffyldg_clear` |
-| `ClearHugeBuffer` | `void ClearHugeBuffer(fjiffyldg_ptr fm)` | `fm`：句柄 | 无 | 释放句柄持有的 huge mmap；此前返回的 mmap 指针立即失效 |
+| 接口                    | 签名                                                                                                                        | 参数                                                                           | 返回值                                             | 生命周期与注意事项                                                              |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `ReadFileData`          | `const char *ReadFileData(fjiffyldg_ptr fm, long long pos, unsigned int *len)`                                              | `fm`：句柄；`pos`：起始字节；`len`：输入最大读取长度、输出实际长度             | 成功返回内部缓冲区指针；失败返回空指针             | 指针由句柄持有，下一次读取可能覆盖；调用方需要长期保存时必须复制                |
+| `ReadFileDataLLineCut`  | `const char *ReadFileDataLLineCut(fjiffyldg_ptr fm, long long *index, long long *bpos, long long *epos, unsigned int *len)` | `index`：输入/输出行号；`bpos`/`epos`：输入/输出读取边界；`len`：输入/输出长度 | 成功返回内部缓冲区指针；失败返回空指针             | 对短行批量读取，对超长行按 4KB 语义截断；输出参数会被推进                       |
+| `ReadFileDataEndOfLine` | `const char *ReadFileDataEndOfLine(fjiffyldg_ptr fm, long long index, long long pos, unsigned int *len)`                    | `index`：行号；`pos`：行内或文件字节位置；`len`：输入/输出长度                 | 成功返回内部缓冲区指针；失败返回空指针             | 从指定位置读取到当前行末尾；返回指针遵循内部缓冲区生命周期                      |
+| `GetFileMappedHuge`     | `const char *GetFileMappedHuge(fjiffyldg_ptr fm, const char *fileName, long long *bufferSize)`                              | `fm`：句柄；`fileName`：路径；`bufferSize`：输出映射大小                       | 成功返回只读 mmap 指针；失败返回空指针并将大小置 0 | 指针有效期到 `ClearHugeBuffer`、下一次 `GetFileMappedHuge` 或 `fjiffyldg_clear` |
+| `ClearHugeBuffer`       | `void ClearHugeBuffer(fjiffyldg_ptr fm)`                                                                                    | `fm`：句柄                                                                     | 无                                                 | 释放句柄持有的 huge mmap；此前返回的 mmap 指针立即失效                          |
 
 ### 9.5 编码检查
 
-| 接口 | 签名 | 参数 | 返回值 | 生命周期与注意事项 |
-| ---- | ---- | ---- | ------ | ------------------ |
-| `CheckTextASCII` | `unsigned int CheckTextASCII(const char *text, unsigned int len)` | `text`：字节指针；`len`：长度 | `0` 表示全部为 ASCII；非 `0` 表示发现非 ASCII 的位置或距离 | `text` 为空且 `len > 0` 时返回错误值；不要把返回值当作布尔 true 表示成功 |
-| `CheckWholeTextUtf8` | `unsigned int CheckWholeTextUtf8(const char *text, unsigned int len)` | `text`：完整字节片段；`len`：长度 | `0` 表示有效 UTF-8；非 `0` 表示无效位置或距离 | 适合完整校验输入缓冲区 |
-| `CheckExtractTextUtf8` | `unsigned int CheckExtractTextUtf8(const char *text, unsigned int len)` | `text`：字节片段；`len`：长度 | `0` 表示抽样范围有效；非 `0` 表示抽样发现无效 UTF-8 | 用于快速抽样判断，不能替代需要严格保证时的完整校验 |
-| `GetUtf8TextCharCount` | `unsigned int GetUtf8TextCharCount(const char **text, unsigned int len)` | `text`：输入/输出字节指针地址；`len`：最大检查长度 | 返回 UTF-8 字符数，并把 `*text` 推进到已消费位置 | `text` 或 `*text` 为空时返回 0；调用方可用指针差计算已消费字节数 |
+| 接口                   | 签名                                                                     | 参数                                               | 返回值                                                     | 生命周期与注意事项                                                       |
+| ---------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `CheckTextASCII`       | `unsigned int CheckTextASCII(const char *text, unsigned int len)`        | `text`：字节指针；`len`：长度                      | `0` 表示全部为 ASCII；非 `0` 表示发现非 ASCII 的位置或距离 | `text` 为空且 `len > 0` 时返回错误值；不要把返回值当作布尔 true 表示成功 |
+| `CheckWholeTextUtf8`   | `unsigned int CheckWholeTextUtf8(const char *text, unsigned int len)`    | `text`：完整字节片段；`len`：长度                  | `0` 表示有效 UTF-8；非 `0` 表示无效位置或距离              | 适合完整校验输入缓冲区                                                   |
+| `CheckExtractTextUtf8` | `unsigned int CheckExtractTextUtf8(const char *text, unsigned int len)`  | `text`：字节片段；`len`：长度                      | `0` 表示抽样范围有效；非 `0` 表示抽样发现无效 UTF-8        | 用于快速抽样判断，不能替代需要严格保证时的完整校验                       |
+| `GetUtf8TextCharCount` | `unsigned int GetUtf8TextCharCount(const char **text, unsigned int len)` | `text`：输入/输出字节指针地址；`len`：最大检查长度 | 返回 UTF-8 字符数，并把 `*text` 推进到已消费位置           | `text` 或 `*text` 为空时返回 0；调用方可用指针差计算已消费字节数         |
 
 ### 9.6 文件工具
 
-| 接口 | 签名 | 参数 | 返回值 | 生命周期与注意事项 |
-| ---- | ---- | ---- | ------ | ------------------ |
-| `GetFileSizeByteCount` | `long long GetFileSizeByteCount(const char *name)` | `name`：路径字符串 | 成功返回文件大小；失败返回错误码对应的负值或错误值 | 返回单位是字节 |
-| `ToCloneFile` | `int ToCloneFile(const char *oldFileName, const char *newFileName)` | `oldFileName`：源路径；`newFileName`：目标路径 | `0` 成功；非 `0` 为错误码 | 目标文件会被创建或覆盖，具体行为遵循 Rust 文件操作实现 |
-| `ToSaveFile` | `int ToSaveFile(const char *fileName, const char *buffer, long long len)` | `fileName`：目标路径；`buffer`：待写入字节；`len`：字节数 | `0` 成功；非 `0` 为错误码 | 保存 `buffer[0..len)` 到文件；`len < 0` 或空指针会返回错误 |
-| `ToAppendFile` | `int ToAppendFile(const char *fileName, const char *buffer, long long len)` | `fileName`：目标路径；`buffer`：待追加字节；`len`：字节数 | `0` 成功；非 `0` 为错误码 | 文件不存在时会创建；调用方保留缓冲区所有权 |
-| `ToConcatenateFile` | `int ToConcatenateFile(const char *catFileName, const char *appendFileName)` | `catFileName`：被追加的目标文件；`appendFileName`：读取来源文件 | `0` 成功；非 `0` 为错误码 | 将第二个文件内容追加到第一个文件末尾 |
+| 接口                   | 签名                                                                         | 参数                                                            | 返回值                                             | 生命周期与注意事项                                         |
+| ---------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------- |
+| `GetFileSizeByteCount` | `long long GetFileSizeByteCount(const char *name)`                           | `name`：路径字符串                                              | 成功返回文件大小；失败返回错误码对应的负值或错误值 | 返回单位是字节                                             |
+| `ToCloneFile`          | `int ToCloneFile(const char *oldFileName, const char *newFileName)`          | `oldFileName`：源路径；`newFileName`：目标路径                  | `0` 成功；非 `0` 为错误码                          | 目标文件会被创建或覆盖，具体行为遵循 Rust 文件操作实现     |
+| `ToSaveFile`           | `int ToSaveFile(const char *fileName, const char *buffer, long long len)`    | `fileName`：目标路径；`buffer`：待写入字节；`len`：字节数       | `0` 成功；非 `0` 为错误码                          | 保存 `buffer[0..len)` 到文件；`len < 0` 或空指针会返回错误 |
+| `ToAppendFile`         | `int ToAppendFile(const char *fileName, const char *buffer, long long len)`  | `fileName`：目标路径；`buffer`：待追加字节；`len`：字节数       | `0` 成功；非 `0` 为错误码                          | 文件不存在时会创建；调用方保留缓冲区所有权                 |
+| `ToConcatenateFile`    | `int ToConcatenateFile(const char *catFileName, const char *appendFileName)` | `catFileName`：被追加的目标文件；`appendFileName`：读取来源文件 | `0` 成功；非 `0` 为错误码                          | 将第二个文件内容追加到第一个文件末尾                       |
 
 ## 10. 错误码约定
 

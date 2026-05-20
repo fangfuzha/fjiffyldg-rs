@@ -1,6 +1,6 @@
 ## Summary
 
-- 
+-
 
 ## Change type
 

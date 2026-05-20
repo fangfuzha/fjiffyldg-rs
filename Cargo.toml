@@ -12,11 +12,7 @@ homepage = "https://github.com/fangfuzha/fjiffyldg-rs"
 documentation = "https://docs.rs/fjiffyldg"
 keywords = ["file", "mmap", "large-file", "encoding", "ffi"]
 categories = ["filesystem", "encoding", "api-bindings"]
-exclude = [
-    "target/**",
-    "reference/**",
-    ".github/**",
-]
+exclude = ["target/**", "reference/**", ".github/**"]
 
 [lib]
 name = "fjiffyldg"
@@ -40,9 +36,9 @@ harness = false
 [package.metadata.docs.rs]
 all-features = true
 targets = [
-    "x86_64-unknown-linux-gnu",
-    "x86_64-pc-windows-msvc",
-    "aarch64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+  "aarch64-apple-darwin",
 ]
 
 [profile.release]
