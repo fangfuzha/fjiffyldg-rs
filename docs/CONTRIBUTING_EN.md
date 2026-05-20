@@ -40,9 +40,9 @@ pwsh -File scripts/check_c_abi.ps1
 ```
 
 - When changing exported signatures, error codes, pointer lifetimes, or buffer ownership rules, update:
-  - [docs/c_api_usage.md](docs/c_api_usage.md)
-  - [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
-  - Related status entries in [DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md) / [DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md)
+    - [docs/c_api_usage.md](docs/c_api_usage.md)
+    - [docs/c_api_usage_en.md](docs/c_api_usage_en.md)
+    - Related status entries in [DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md) / [DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md)
 - C ABI changes can be breaking changes. Call this out explicitly in the commit or pull request description.
 
 ## Documentation Synchronization
