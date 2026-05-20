@@ -415,6 +415,24 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_read_to_end_of_line_returns_empty_at_line_boundary() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"line1\nline2\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        let mut len = 8;
+        let data = ffi::ReadFileDataEndOfLine(handle, 0, 6, &mut len);
+        assert!(!data.is_null());
+        assert_eq!(len, 0);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_restart_scan_distinguishes_auto_detect_from_default() {
         let mut temp = NamedTempFile::new().unwrap();
         let mut data = vec![0xFF, 0xFE];

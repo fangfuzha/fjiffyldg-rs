@@ -815,7 +815,11 @@ impl FileModel {
         }
 
         *len = actual_len;
-        self.read_data(pos, actual_len)
+        if actual_len == 0 {
+            Some(Vec::new())
+        } else {
+            self.read_data(pos, actual_len)
+        }
     }
 
     /// 获取整个文件的内存映射（超大文件场景）

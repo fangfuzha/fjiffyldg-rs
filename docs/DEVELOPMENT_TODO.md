@@ -383,7 +383,7 @@
     - 公开 C ABI 的函数名、签名、返回值、错误码、空指针、越界、空文件等边界行为与 C++ 参考实现严格对齐
     - 锁定 `ReadFileData*`、`GetFileMappedHuge`、UTF 检测、行索引查询和文件操作的指针生命周期与输出语义
     - 建立 C++/Rust 对照清单与回归测试；内部路线只在影响可观察行为或性能承诺时强制对齐
-- **进展**：已补首批 C ABI 边界回归测试，并修正三处 Rust 偏差：未建立任何行偏移时 `GetFileLineIndex` 错误返回 `0`，查询位置超过文件末尾时误返回最后一行，以及 `ReadFileData` 在 EOF/越过 EOF 时错误返回失败而非空缓冲区的问题。
+- **进展**：已补首批 C ABI 边界回归测试，并修正四处 Rust 偏差：未建立任何行偏移时 `GetFileLineIndex` 错误返回 `0`，查询位置超过文件末尾时误返回最后一行，`ReadFileData` 在 EOF/越过 EOF 时错误返回失败而非空缓冲区，以及 `ReadFileDataEndOfLine` 在行尾边界误读到下一段数据的问题。
 - **状态**：⏳ 持续执行
 
 ### ⏳ Task V.2: v1.1+ 保持 ABI 兼容并逐步 Rust 化
