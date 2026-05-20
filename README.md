@@ -1,3 +1,13 @@
+# fjiffyldg-rs
+
+项目文档已集中放在 `docs/` 目录下。请从文档索引开始查看：
+
+- 中文入口：[docs/README_ZH.md](docs/README_ZH.md)
+- 英文入口：[docs/README.md](docs/README.md)
+
+仓库根目录仅保留作为导航入口和平台识别的元数据文件（如 `Cargo.toml`、`LICENSE`、`.github/` 等）。
+
+## ✨ 核心特性
 # Fjiffyldg (Rust)
 
 [English](README_EN.md)
