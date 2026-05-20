@@ -105,7 +105,7 @@ fjiffyldg-rs/
 
 ## Contributing
 
-Issues and pull requests are welcome. The repository provides templates for bugs, features, C ABI issues, and performance regressions, and GitHub Actions runs formatting, Clippy, tests, documentation, benchmark compilation, C/C++ ABI smoke, and publish dry-run. Read [docs/CONTRIBUTING_EN.md](docs/CONTRIBUTING_EN.md) before contributing, see [docs/SECURITY_EN.md](docs/SECURITY_EN.md) for security reports, see [docs/CHANGELOG_EN.md](docs/CHANGELOG_EN.md) for release history, and see [docs/DEVELOPMENT_TODO_EN.md](docs/DEVELOPMENT_TODO_EN.md) for the roadmap.
+Issues and pull requests are welcome. The repository provides templates for bugs, features, C ABI issues, and performance regressions, and GitHub Actions runs formatting, Clippy, tests, documentation, benchmark compilation, C/C++ ABI smoke, and publish dry-run. Read [docs/CONTRIBUTING_EN.md](docs/CONTRIBUTING_EN.md) before contributing, see [docs/SECURITY_EN.md](docs/SECURITY_EN.md) for security reports, see [docs/CHANGELOG_EN.md](docs/CHANGELOG_EN.md) for release history, see [docs/DEVELOPMENT_TODO_EN.md](docs/DEVELOPMENT_TODO_EN.md) for the roadmap, and see [docs/release_en.md](docs/release_en.md) for the release process.
 
 ## Contact
 
