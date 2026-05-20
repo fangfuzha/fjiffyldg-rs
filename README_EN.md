@@ -2,6 +2,11 @@
 
 [中文文档](README.md)
 
+[![CI](https://img.shields.io/github/actions/workflow/status/ceepuka/fjiffyldg-rs/ci.yml?branch=main&label=CI)](https://github.com/ceepuka/fjiffyldg-rs/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/fjiffyldg)](https://crates.io/crates/fjiffyldg)
+[![docs.rs](https://img.shields.io/docsrs/fjiffyldg)](https://docs.rs/fjiffyldg)
+[![license](https://img.shields.io/crates/l/fjiffyldg)](LICENSE)
+
 A high-performance, cross-platform file processing library designed for efficient modern large-file loading.
 
 > This is a Rust rewrite of the original C++ [Fjiffyldg project](https://github.com/ceepuka/fjiffyldg).

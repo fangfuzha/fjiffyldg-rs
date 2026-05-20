@@ -2,6 +2,11 @@
 
 [English](README_EN.md)
 
+[![CI](https://img.shields.io/github/actions/workflow/status/ceepuka/fjiffyldg-rs/ci.yml?branch=main&label=CI)](https://github.com/ceepuka/fjiffyldg-rs/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/fjiffyldg)](https://crates.io/crates/fjiffyldg)
+[![docs.rs](https://img.shields.io/docsrs/fjiffyldg)](https://docs.rs/fjiffyldg)
+[![license](https://img.shields.io/crates/l/fjiffyldg)](LICENSE)
+
 高性能、跨平台的通用文件处理开发库，专为现代大文件高效加载设计。
 
 > 🚀 这是原 C++ [Fjiffyldg 项目](https://github.com/ceepuka/fjiffyldg) 的 Rust 重写版本。
