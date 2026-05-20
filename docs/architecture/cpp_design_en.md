@@ -85,12 +85,12 @@ The line index is declared in [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.
 
 The main purpose of `LineIndex` is to avoid keeping a 64-bit offset for every line in very large files. It divides line-position indexes into four categories:
 
-| Structure | Role | Trigger |
-| --- | --- | --- |
-| `direct: Vector<uint32>` | Stores 32-bit offsets for the early lines of normal files | The offset fits in `uint32`, and the total exact-index count has not exceeded `DIRECT_LINES_MAX` |
-| `exdirect: Vector<int64>` | Stores 64-bit offsets for early lines beyond 4GB | The total exact-index count has not exceeded `DIRECT_LINES_MAX`, but the offset is greater than `UINT_MAX` |
-| `chunk: Vector<LindexPos>` | Stores sparse partition indexes after the first million lines | Exact indexes exceed `DIRECT_LINES_MAX`; roughly one partition is recorded per `128KB` file span |
-| `overstep` | Records the first position beyond the chunk-management limit | The number of chunks reaches `CHUNK_COUNT_MAX` |
+| Structure                  | Role                                                          | Trigger                                                                                                    |
+| -------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `direct: Vector<uint32>`   | Stores 32-bit offsets for the early lines of normal files     | The offset fits in `uint32`, and the total exact-index count has not exceeded `DIRECT_LINES_MAX`           |
+| `exdirect: Vector<int64>`  | Stores 64-bit offsets for early lines beyond 4GB              | The total exact-index count has not exceeded `DIRECT_LINES_MAX`, but the offset is greater than `UINT_MAX` |
+| `chunk: Vector<LindexPos>` | Stores sparse partition indexes after the first million lines | Exact indexes exceed `DIRECT_LINES_MAX`; roughly one partition is recorded per `128KB` file span           |
+| `overstep`                 | Records the first position beyond the chunk-management limit  | The number of chunks reaches `CHUNK_COUNT_MAX`                                                             |
 
 Core constants:
 
@@ -217,15 +217,15 @@ The C++ version exposes two kinds of encoding behavior: UTF-mode handling for li
 
 The `utf` argument of `RestartScanFile(fm, name, offset, utf)` has the following meanings:
 
-| Value | Meaning |
-| --- | --- |
-| `0` | Default mode; scan newlines as single bytes |
-| `1` | UTF-16LE |
-| `2` | UTF-16BE |
-| `3` | UTF-32LE |
-| `4` | UTF-32BE |
-| `-1` | Enable automatic detection |
-| Other | Fall back to default mode |
+| Value | Meaning                                     |
+| ----- | ------------------------------------------- |
+| `0`   | Default mode; scan newlines as single bytes |
+| `1`   | UTF-16LE                                    |
+| `2`   | UTF-16BE                                    |
+| `3`   | UTF-32LE                                    |
+| `4`   | UTF-32BE                                    |
+| `-1`  | Enable automatic detection                  |
+| Other | Fall back to default mode                   |
 
 In implementation terms, `SetUtfMode` accepts only `0..=4`; other values fall back to `0`. Then `BackstageFileLinesReScan(name, offset, utf != -1)` uses `utfverifiable` to decide whether BOM auto-detection should be skipped. When `utf == -1`, BOM-based auto-detection is allowed. When the caller explicitly passes `1..4`, the explicit mode is not overwritten by BOM detection.
 
@@ -313,13 +313,13 @@ One reviewed risk is worth recording: in `FileSaveByFileMapping`, the chunk-save
 
 File-loading error codes are defined in the header:
 
-| Code | Meaning |
-| --- | --- |
-| `0` | Success |
+| Code | Meaning                                         |
+| ---- | ----------------------------------------------- |
+| `0`  | Success                                         |
 | `-1` | File does not exist, or no file has been loaded |
-| `1` | File contents or attributes are inaccessible |
-| `2` | File stream error |
-| `3` | Memory mapping error |
+| `1`  | File contents or attributes are inaccessible    |
+| `2`  | File stream error                               |
+| `3`  | Memory mapping error                            |
 
 Calling conventions are not fully uniform, but the general pattern is:
 
@@ -427,12 +427,12 @@ flowchart LR
 
 ## 13. Source Index
 
-| Topic | Files |
-| --- | --- |
-| Public C/C++ API | [`reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.h`](../../reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.h), [`reference/fjiffyldg/Fjiffyldg/include/fjiffyldg.h`](../../reference/fjiffyldg/Fjiffyldg/include/fjiffyldg.h) |
-| API implementation, encoding checks, file utility functions | [`reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.cpp) |
-| File model and background scanning | [`reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.h`](../../reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.h), [`reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.cpp) |
-| Line index structures and algorithms | [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.h`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.h), [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.hpp`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.hpp), [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.cpp) |
-| mmap / MapViewOfFile wrapper | [`reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.h`](../../reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.h), [`reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.cpp) |
-| U++ UTF/BOM helpers | [`reference/fjiffyldg/Fjiffyldg/src/Core/Utf.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/Utf.cpp), [`reference/fjiffyldg/Fjiffyldg/src/Core/Bom.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/Bom.cpp) |
-| C API example | [`reference/fjiffyldg/Fjiffyldg/example/test/test.c`](../../reference/fjiffyldg/Fjiffyldg/example/test/test.c) |
+| Topic                                                       | Files                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Public C/C++ API                                            | [`reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.h`](../../reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.h), [`reference/fjiffyldg/Fjiffyldg/include/fjiffyldg.h`](../../reference/fjiffyldg/Fjiffyldg/include/fjiffyldg.h)                                                                                                                                 |
+| API implementation, encoding checks, file utility functions | [`reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.cpp)                                                                                                                                                                                                                                             |
+| File model and background scanning                          | [`reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.h`](../../reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.h), [`reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.cpp)                                                                                                                         |
+| Line index structures and algorithms                        | [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.h`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.h), [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.hpp`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.hpp), [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.cpp) |
+| mmap / MapViewOfFile wrapper                                | [`reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.h`](../../reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.h), [`reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.cpp)                                                                                                         |
+| U++ UTF/BOM helpers                                         | [`reference/fjiffyldg/Fjiffyldg/src/Core/Utf.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/Utf.cpp), [`reference/fjiffyldg/Fjiffyldg/src/Core/Bom.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/Bom.cpp)                                                                                                                                     |
+| C API example                                               | [`reference/fjiffyldg/Fjiffyldg/example/test/test.c`](../../reference/fjiffyldg/Fjiffyldg/example/test/test.c)                                                                                                                                                                                                                                         |

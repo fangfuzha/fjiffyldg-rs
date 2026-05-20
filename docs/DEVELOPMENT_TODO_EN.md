@@ -59,17 +59,17 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 
 ## Progress
 
-| Phase           | Tasks | Done | Progress |
-| --------------- | ----- | ---- | -------- |
-| Phase 1         | 3     | 3    | 100%     |
-| Phase 2         | 4     | 4    | 100%     |
-| Phase 3         | 3     | 3    | 100%     |
-| Phase 4         | 5     | 5    | 100%     |
-| Version roadmap | 2     | 0    | 0%       |
-| Release support | 4     | 4    | 100%     |
-| Documentation   | 4     | 3    | 75%      |
-| Open governance | 10    | 7    | 70%      |
-| **Total**       | **35** | **29** | **83%** |
+| Phase           | Tasks  | Done   | Progress |
+| --------------- | ------ | ------ | -------- |
+| Phase 1         | 3      | 3      | 100%     |
+| Phase 2         | 4      | 4      | 100%     |
+| Phase 3         | 3      | 3      | 100%     |
+| Phase 4         | 5      | 5      | 100%     |
+| Version roadmap | 2      | 0      | 0%       |
+| Release support | 4      | 4      | 100%     |
+| Documentation   | 4      | 3      | 75%      |
+| Open governance | 10     | 7      | 70%      |
+| **Total**       | **35** | **29** | **83%**  |
 
 ## Open Governance and Release Engineering Tasks
 

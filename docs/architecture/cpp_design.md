@@ -1,5 +1,7 @@
 # C++ 版本总体设计
 
+[English](cpp_design_en.md)
+
 本文基于 `reference/fjiffyldg/Fjiffyldg/` 下的 C++ 参考实现逐块审阅整理，目标是记录原始版本的总体设计思路、模块划分、接口约定、线程/内存/错误策略、互操作性注意事项与高层架构。它既可作为 Rust 版本对齐行为的参照，也可作为后续维护 C/C++ ABI 与大文件处理逻辑时的设计索引。
 
 ## 1. 设计目标
@@ -83,12 +85,12 @@ flowchart TB
 
 `LineIndex` 的设计重点是避免为超大文件的每一行都长期保存 64 位偏移。它把行位置索引分为四类：
 
-| 结构 | 作用 | 触发条件 |
-| --- | --- | --- |
-| `direct: Vector<uint32>` | 保存常规文件中前若干行的 32 位偏移 | 行偏移可放入 `uint32`，且总精确索引数未超过 `DIRECT_LINES_MAX` |
-| `exdirect: Vector<int64>` | 保存前若干行中超过 4GB 的 64 位偏移 | 总精确索引数未超过 `DIRECT_LINES_MAX`，但偏移超过 `UINT_MAX` |
-| `chunk: Vector<LindexPos>` | 保存百万行之后的稀疏分区索引 | 精确索引超过 `DIRECT_LINES_MAX` 后，每个约 `128KB` 文件跨度记录一个分区 |
-| `overstep` | 记录超过 chunk 管理上限后的第一个位置 | `chunk` 数量达到 `CHUNK_COUNT_MAX` |
+| 结构                       | 作用                                  | 触发条件                                                                |
+| -------------------------- | ------------------------------------- | ----------------------------------------------------------------------- |
+| `direct: Vector<uint32>`   | 保存常规文件中前若干行的 32 位偏移    | 行偏移可放入 `uint32`，且总精确索引数未超过 `DIRECT_LINES_MAX`          |
+| `exdirect: Vector<int64>`  | 保存前若干行中超过 4GB 的 64 位偏移   | 总精确索引数未超过 `DIRECT_LINES_MAX`，但偏移超过 `UINT_MAX`            |
+| `chunk: Vector<LindexPos>` | 保存百万行之后的稀疏分区索引          | 精确索引超过 `DIRECT_LINES_MAX` 后，每个约 `128KB` 文件跨度记录一个分区 |
+| `overstep`                 | 记录超过 chunk 管理上限后的第一个位置 | `chunk` 数量达到 `CHUNK_COUNT_MAX`                                      |
 
 核心常量：
 
@@ -215,15 +217,15 @@ C++ 版本公开了两类编码能力：行扫描时的 UTF 模式处理，以�
 
 `RestartScanFile(fm, name, offset, utf)` 中的 `utf` 含义如下：
 
-| 值 | 含义 |
-| --- | --- |
-| `0` | 默认模式，按单字节换行扫描 |
-| `1` | UTF-16LE |
-| `2` | UTF-16BE |
-| `3` | UTF-32LE |
-| `4` | UTF-32BE |
-| `-1` | 启用自动检测 |
-| 其他 | 回退默认模式 |
+| 值   | 含义                       |
+| ---- | -------------------------- |
+| `0`  | 默认模式，按单字节换行扫描 |
+| `1`  | UTF-16LE                   |
+| `2`  | UTF-16BE                   |
+| `3`  | UTF-32LE                   |
+| `4`  | UTF-32BE                   |
+| `-1` | 启用自动检测               |
+| 其他 | 回退默认模式               |
 
 实现细节上，`SetUtfMode` 只接受 `0..=4`，其他值会回退为 `0`。随后 `BackstageFileLinesReScan(name, offset, utf != -1)` 会用 `utfverifiable` 控制是否跳过 BOM 自动检测：当 `utf == -1` 时允许根据 BOM 自动检测；当调用方显式传入 `1..4` 时不再自动覆盖。
 
@@ -311,13 +313,13 @@ C++ 版本公开了两类编码能力：行扫描时的 UTF 模式处理，以�
 
 文件加载类错误码在头文件中定义为：
 
-| 错误码 | 含义 |
-| --- | --- |
-| `0` | 成功 |
-| `-1` | 文件不存在，或尚未加载 |
-| `1` | 文件内容或属性不可访问 |
-| `2` | 文件流错误 |
-| `3` | 内存映射错误 |
+| 错误码 | 含义                   |
+| ------ | ---------------------- |
+| `0`    | 成功                   |
+| `-1`   | 文件不存在，或尚未加载 |
+| `1`    | 文件内容或属性不可访问 |
+| `2`    | 文件流错误             |
+| `3`    | 内存映射错误           |
 
 调用约定并不完全统一，但总体规律如下：
 
@@ -425,12 +427,12 @@ flowchart LR
 
 ## 13. 源码索引
 
-| 主题 | 文件 |
-| --- | --- |
-| 公开 C/C++ API | [`reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.h`](../../reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.h), [`reference/fjiffyldg/Fjiffyldg/include/fjiffyldg.h`](../../reference/fjiffyldg/Fjiffyldg/include/fjiffyldg.h) |
-| API 实现、编码检测、文件工具函数 | [`reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.cpp) |
-| 文件模型与后台扫描 | [`reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.h`](../../reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.h), [`reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.cpp) |
-| 行索引结构与算法 | [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.h`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.h), [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.hpp`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.hpp), [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.cpp) |
-| mmap / MapViewOfFile 封装 | [`reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.h`](../../reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.h), [`reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.cpp) |
-| U++ UTF/BOM 辅助 | [`reference/fjiffyldg/Fjiffyldg/src/Core/Utf.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/Utf.cpp), [`reference/fjiffyldg/Fjiffyldg/src/Core/Bom.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/Bom.cpp) |
-| C API 示例 | [`reference/fjiffyldg/Fjiffyldg/example/test/test.c`](../../reference/fjiffyldg/Fjiffyldg/example/test/test.c) |
+| 主题                             | 文件                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 公开 C/C++ API                   | [`reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.h`](../../reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.h), [`reference/fjiffyldg/Fjiffyldg/include/fjiffyldg.h`](../../reference/fjiffyldg/Fjiffyldg/include/fjiffyldg.h)                                                                                                                                 |
+| API 实现、编码检测、文件工具函数 | [`reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/fjiffyldg.cpp)                                                                                                                                                                                                                                             |
+| 文件模型与后台扫描               | [`reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.h`](../../reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.h), [`reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/uppFilemodel.cpp)                                                                                                                         |
+| 行索引结构与算法                 | [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.h`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.h), [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.hpp`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.hpp), [`reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/FileLineIndex.cpp) |
+| mmap / MapViewOfFile 封装        | [`reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.h`](../../reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.h), [`reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/FileMapping.cpp)                                                                                                         |
+| U++ UTF/BOM 辅助                 | [`reference/fjiffyldg/Fjiffyldg/src/Core/Utf.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/Utf.cpp), [`reference/fjiffyldg/Fjiffyldg/src/Core/Bom.cpp`](../../reference/fjiffyldg/Fjiffyldg/src/Core/Bom.cpp)                                                                                                                                     |
+| C API 示例                       | [`reference/fjiffyldg/Fjiffyldg/example/test/test.c`](../../reference/fjiffyldg/Fjiffyldg/example/test/test.c)                                                                                                                                                                                                                                         |
