@@ -393,6 +393,28 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_read_data_clamps_positions_at_file_end() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"line1\nline2\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadFileOnly(handle, path.as_ptr()), 0);
+
+        let mut len = 4;
+        let at_end = ffi::ReadFileData(handle, 12, &mut len);
+        assert!(!at_end.is_null());
+        assert_eq!(len, 0);
+
+        len = 4;
+        let past_end = ffi::ReadFileData(handle, 999, &mut len);
+        assert!(!past_end.is_null());
+        assert_eq!(len, 0);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_restart_scan_distinguishes_auto_detect_from_default() {
         let mut temp = NamedTempFile::new().unwrap();
         let mut data = vec![0xFF, 0xFE];

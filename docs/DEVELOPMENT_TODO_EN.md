@@ -102,7 +102,7 @@ This checklist is based on Rust API Guidelines, Cargo publishing metadata, docs.
 - Lock pointer lifetime and output semantics for `ReadFileData*`, `GetFileMappedHuge`, UTF detection, line index queries, and file operation helpers.
 - Build a C++/Rust compatibility matrix and regression tests; require internal route parity only when it affects observable behavior or documented performance guarantees.
 
-**Progress:** Added the first C ABI boundary regressions for `LoadFileOnly` + `GetFileLineCount` / `GetFileLineIndex`, and fixed two Rust mismatches: `GetFileLineIndex` no longer returns `0` when no line offsets have been built, and it no longer falls back to the last line when the queried byte position is past the end of the file.
+**Progress:** Added the first C ABI boundary regressions and fixed three Rust mismatches: `GetFileLineIndex` no longer returns `0` when no line offsets have been built, it no longer falls back to the last line when the queried byte position is past the end of the file, and `ReadFileData` now returns an empty buffer at EOF / past EOF instead of incorrectly reporting failure.
 
 **Status:** Ongoing
 

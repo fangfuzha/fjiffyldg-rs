@@ -628,7 +628,7 @@ impl FileModel {
     pub fn read_data(&self, pos: i64, mut len: usize) -> Option<Vec<u8>> {
         let file_size = *self.file_size.read() as i64;
 
-        if !self.is_loaded() || pos < 0 || pos >= file_size {
+        if !self.is_loaded() || pos < 0 {
             return None;
         }
 
@@ -639,6 +639,10 @@ impl FileModel {
         let end_pos = (pos as usize).min(file_size as usize);
         let remaining = file_size as usize - end_pos;
         let actual_len = len.min(remaining);
+
+        if actual_len == 0 {
+            return Some(Vec::new());
+        }
 
         if let Some(ref data) = *self.data.read() {
             return Some(data[end_pos..end_pos + actual_len].to_vec());
