@@ -1,0 +1,14 @@
+repos:
+  - repo: local
+    hooks:
+      - id: prettier
+        name: Format Markdown (prettier)
+        entry: npx prettier --write
+        language: system
+        files: "\\.md$"
+
+      - id: rustfmt
+        name: Format Rust (cargo fmt)
+        entry: cargo fmt --all
+        language: system
+        types: [rust]
