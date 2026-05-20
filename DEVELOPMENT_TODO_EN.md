@@ -52,12 +52,12 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 
 ## Documentation Tasks
 
-| Task                                    | Status  | Notes                                                                                                                                                     |
-| --------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add bilingual developer documentation   | Done    | Each project document has Chinese and English versions, with a language switch link at the top                                                            |
-| Add bilingual C API usage documentation       | Done    | Documents cbindgen header generation, build/link steps, handle lifetime, load/scan, reads, huge mmap, encoding helpers, error codes, and maintenance flow |
+| Task                                           | Status  | Notes                                                                                                                                                                               |
+| ---------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add bilingual developer documentation          | Done    | Each project document has Chinese and English versions, with a language switch link at the top                                                                                      |
+| Add bilingual C API usage documentation        | Done    | Documents cbindgen header generation, build/link steps, handle lifetime, load/scan, reads, huge mmap, encoding helpers, error codes, and maintenance flow                           |
 | Cover every C API interface in the usage guide | Done    | Documents every exported interface from [include/fjiffyldg.h](include/fjiffyldg.h) / [src/ffi.rs](src/ffi.rs), including signature, parameters, return values, lifetimes, and notes |
-| Keep bilingual documents synchronized         | Ongoing | Future documentation edits should update both language versions in the same change                                                                        |
+| Keep bilingual documents synchronized          | Ongoing | Future documentation edits should update both language versions in the same change                                                                                                  |
 
 ## Progress
 
@@ -69,23 +69,24 @@ This document tracks the Rust rewrite work derived from the C++ coverage report.
 | Phase 4         | 5     | 5    | 100%     |
 | Release support | 4     | 4    | 100%     |
 | Documentation   | 4     | 3    | 75%      |
-| Open governance | 9     | 5    | 56%      |
+| Open governance | 10    | 7    | 70%      |
 
 ## Open Governance and Release Engineering Tasks
 
 This checklist is based on Rust API Guidelines, Cargo publishing metadata, docs.rs metadata, GitHub community health files, Keep a Changelog, SemVer, and C ABI stability practices.
 
-| Task | Status | Notes |
-| ---- | ------ | ----- |
-| Add cross-platform CI quality gates | Done | [.github/workflows/ci.yml](.github/workflows/ci.yml) runs fmt, Clippy, tests, docs, benchmark compilation, C/C++ ABI smoke, and publish dry-run on Windows/Linux/macOS |
-| Add contributing guide and security policy | Done | [CONTRIBUTING.md](CONTRIBUTING.md) / [CONTRIBUTING_EN.md](CONTRIBUTING_EN.md), [SECURITY.md](SECURITY.md) / [SECURITY_EN.md](SECURITY_EN.md) document development checks, C API change rules, bilingual docs, vulnerability reporting, supported versions, and security boundaries |
-| Add changelog | Done | [CHANGELOG.md](CHANGELOG.md) / [CHANGELOG_EN.md](CHANGELOG_EN.md) follow Keep a Changelog and record the initial `0.1.0` baseline |
-| Complete Cargo publishing metadata | Done | [Cargo.toml](Cargo.toml) includes `rust-version`, `documentation`, docs.rs metadata, crates.io-compliant keywords/categories, and package excludes |
-| Add collaboration templates | Done | Added `.github/ISSUE_TEMPLATE/*` and `.github/PULL_REQUEST_TEMPLATE.md` for bugs, features, C ABI issues, performance regressions, and PR checklist |
-| Add dependency and supply-chain governance | Todo | Add `.github/dependabot.yml` and `deny.toml` for GitHub Actions/Cargo updates, licenses, advisories, duplicate dependencies, and banned crates |
-| Add formatting, newline, and repository attributes | Todo | Add [rustfmt.toml](rustfmt.toml), [.editorconfig](.editorconfig), and [.gitattributes](.gitattributes) for formatting, line endings, generated-file markers, and reference linguist handling |
-| Document release and SemVer/ABI rules | Todo | Add `docs/release.md` / `docs/release_en.md` for versioning, pre-release checks, packaging, publish dry-run, tags, GitHub Release, docs.rs checks, C ABI compatibility, and yanking |
-| Improve README trust signals | Todo | Add badges or links for CI, crates.io, docs.rs, license, MSRV, contributing, security, changelog, and release status |
+| Task                                               | Status | Notes                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add cross-platform CI quality gates                | Done   | [.github/workflows/ci.yml](.github/workflows/ci.yml) runs fmt, Clippy, tests, docs, benchmark compilation, C/C++ ABI smoke, and publish dry-run on Windows/Linux/macOS                                                                                                             |
+| Add contributing guide and security policy         | Done   | [CONTRIBUTING.md](CONTRIBUTING.md) / [CONTRIBUTING_EN.md](CONTRIBUTING_EN.md), [SECURITY.md](SECURITY.md) / [SECURITY_EN.md](SECURITY_EN.md) document development checks, C API change rules, bilingual docs, vulnerability reporting, supported versions, and security boundaries |
+| Add changelog                                      | Done   | [CHANGELOG.md](CHANGELOG.md) / [CHANGELOG_EN.md](CHANGELOG_EN.md) follow Keep a Changelog and record the initial `0.1.0` baseline                                                                                                                                                  |
+| Complete Cargo publishing metadata                 | Done   | [Cargo.toml](Cargo.toml) includes `rust-version`, `documentation`, docs.rs metadata, crates.io-compliant keywords/categories, and package excludes                                                                                                                                 |
+| Add collaboration templates                        | Done   | Added `.github/ISSUE_TEMPLATE/*` and `.github/PULL_REQUEST_TEMPLATE.md` for bugs, features, C ABI issues, performance regressions, and PR checklist                                                                                                                                |
+| Add dependency auto-update workflow               | Done   | [.github/dependabot.yml](.github/dependabot.yml) automatically tracks Cargo and GitHub Actions updates with grouped PRs and cache-friendly cadence                                                                                                                           |
+| Add tag-based release workflow                    | Done   | [.github/workflows/release.yml](.github/workflows/release.yml) runs cross-platform build/test/verification, packages the header, and publishes the crate on tag pushes with caching                                                                                           |
+| Add formatting, newline, and repository attributes | Todo   | Add [rustfmt.toml](rustfmt.toml), [.editorconfig](.editorconfig), and [.gitattributes](.gitattributes) for formatting, line endings, generated-file markers, and reference linguist handling                                                                                       |
+| Document release and SemVer/ABI rules              | Todo   | Add `docs/release.md` / `docs/release_en.md` for versioning, pre-release checks, packaging, publish dry-run, tags, GitHub Release, docs.rs checks, C ABI compatibility, and yanking                                                                                                |
+| Improve README trust signals                       | Todo   | Add badges or links for CI, crates.io, docs.rs, license, MSRV, contributing, security, changelog, and release status                                                                                                                                                               |
 
 ## Remaining Work
 

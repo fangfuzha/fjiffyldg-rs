@@ -242,8 +242,8 @@
 | 第四阶段 | 5      | 5      | 100%    |
 | 发布配套 | 4      | 4      | 100%    |
 | 文档配套 | 4      | 3      | 75%     |
-| 开源治理 | 9      | 5      | 56%     |
-| **总计** | **32** | **27** | **84%** |
+| 开源治理 | 10     | 7      | 70%     |
+| **总计** | **33** | **29** | **88%** |
 
 ---
 
@@ -305,6 +305,7 @@
 - **状态**：⏳ 持续执行
 
 ---
+
 ## 🌐 开源治理与发布工程任务
 
 基于 Rust API Guidelines、Cargo 发布规范、docs.rs 元数据、GitHub community health 文件、Keep a Changelog、SemVer 与 C ABI 稳定性实践，后续按以下清单补齐完善开源库项目结构。
@@ -339,31 +340,38 @@
 - **要求**：提供 bug、feature、C ABI、性能回归 issue 模板和 PR checklist
 - **状态**：✅ 已完成（2026-05-20）
 
-### ⏳ Task O.6: 增加依赖与供应链治理
+### ✅ Task O.6: 增加依赖自动更新工作流
 
-- **文件**：`.github/dependabot.yml`、`deny.toml`
-- **要求**：自动检查 GitHub Actions 与 Cargo 依赖更新，并用 cargo-deny 检查许可证、漏洞公告、重复依赖和禁用 crate
-- **状态**：⏳ 待完成
+- **文件**：[.github/dependabot.yml](.github/dependabot.yml)
+- **要求**：使用 Dependabot 自动检查 GitHub Actions 与 Cargo 依赖更新，并通过缓存与分组减少依赖更新噪音
+- **状态**：✅ 已完成（2026-05-20）
 
-### ⏳ Task O.7: 补齐格式化、换行和仓库属性配置
+### ✅ Task O.7: 增加标签发布工作流
+
+- **文件**：[.github/workflows/release.yml](.github/workflows/release.yml)
+- **要求**：在 tag push 时跨平台构建、测试/校验、生成并附带头文件、发布 crates.io 库，并使用缓存优化构建效率
+- **状态**：✅ 已完成（2026-05-20）
+
+### ⏳ Task O.8: 补齐格式化、换行和仓库属性配置
 
 - **文件**：[rustfmt.toml](rustfmt.toml)、[.editorconfig](.editorconfig)、[.gitattributes](.gitattributes)
 - **要求**：统一 Rust/Markdown/PowerShell 格式、换行符策略、生成文件标记与 reference 目录 linguist 处理
 - **状态**：⏳ 待完成
 
-### ⏳ Task O.8: 建立发布流程与 SemVer/ABI 规则
+### ⏳ Task O.9: 建立发布流程与 SemVer/ABI 规则
 
 - **文件**：`docs/release.md`、`docs/release_en.md`
 - **要求**：说明版本号、发布前检查、`cargo package --list`、`cargo publish --dry-run`、tag、GitHub Release、docs.rs 检查、C ABI 兼容与 yank 流程
 - **状态**：⏳ 待完成
 
-### ⏳ Task O.9: 增强 README 项目可信度入口
+### ⏳ Task O.10: 增强 README 项目可信度入口
 
 - **文件**：[README.md](README.md)、[README_EN.md](README_EN.md)
 - **要求**：增加 CI、crates.io、docs.rs、license、MSRV 徽章或链接，并明确贡献、安全、变更日志与发布状态入口
 - **状态**：⏳ 待完成
 
 ---
+
 ## �🎯 建议执行策略
 
 1. **快速赢**（第一周）：完成第一阶段 3 个任务，修复核心功能缺陷
@@ -395,5 +403,5 @@
 
 ---
 
-**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与链接运行 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档、C API 全接口参考、开源治理 TODO、CI、贡献指南、安全政策、变更日志、Cargo 发布元数据、Issue/PR 模板）
+**最后更新**：2026-05-20（已同步第一阶段、百万行索引修复、chunk 填充与按行号/按位置查询范围裁剪、overstep 查询范围裁剪、1GB windowed mmap 读取与扫描、UTF-8 offset、read_line_cut、UTF-16 offset 重扫、UTF-16BE/UTF-32 行扫描补测、加载状态 API、Condvar 扫描等待、C/C++ FFI、cbindgen 头文件生成与链接运行 smoke、huge mmap 指针语义、Criterion 大文件基准入口、双语文档规范、C API 双语使用文档、C API 全接口参考、开源治理 TODO、CI、贡献指南、安全政策、变更日志、Cargo 发布元数据、Issue/PR 模板、依赖自动更新工作流、标签发布工作流）
 **维护者**：开发团队
