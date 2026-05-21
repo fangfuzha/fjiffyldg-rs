@@ -746,6 +746,30 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_restart_scan_missing_path_clears_previous_index() {
+        let mut loaded = NamedTempFile::new().unwrap();
+        loaded.write_all(b"old\nlines\n").unwrap();
+        let loaded_path = CString::new(loaded.path().to_string_lossy().as_bytes()).unwrap();
+
+        let missing_path = std::env::temp_dir().join("fjiffyldg-rs-missing-rescan-input.txt");
+        let _ = std::fs::remove_file(&missing_path);
+        let missing_path = CString::new(missing_path.to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, loaded_path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+        assert_eq!(ffi::GetFileLineCount(handle), 3);
+
+        ffi::RestartScanFile(handle, missing_path.as_ptr(), 0, 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        assert_eq!(ffi::GetFileLineCount(handle), -1);
+        assert_eq!(ffi::GetFileLinePos(handle, 0), -1);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_load_status_reports_unloaded_error_and_loaded() {
         let fjiffyldg = Fjiffyldg::new();
         assert_eq!(fjiffyldg.load_status(), Ok(false));
