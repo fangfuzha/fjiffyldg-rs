@@ -504,6 +504,30 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_line_cut_treats_empty_file_as_empty_success() {
+        let temp = NamedTempFile::new().unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        let mut index = 0;
+        let mut bpos = -1;
+        let mut epos = -1;
+        let mut len = 0;
+        let data = ffi::ReadFileDataLLineCut(handle, &mut index, &mut bpos, &mut epos, &mut len);
+
+        assert!(!data.is_null());
+        assert_eq!(index, 0);
+        assert_eq!(bpos, 0);
+        assert_eq!(epos, 0);
+        assert_eq!(len, 0);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_read_to_end_of_line_returns_empty_at_line_boundary() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"line1\nline2\n").unwrap();

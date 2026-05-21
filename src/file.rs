@@ -778,7 +778,7 @@ impl FileModel {
         *len = actual_len;
 
         if actual_len == 0 {
-            None
+            Some(Vec::new())
         } else {
             self.read_data(begin, actual_len)
         }

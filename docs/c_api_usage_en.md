@@ -148,7 +148,7 @@ Buffer rules:
 - Copy data immediately if it must outlive the next API call.
 - Never call `free()` on returned pointers.
 
-`ReadFileDataLLineCut` follows the C++ reference semantics: it batches short lines and truncates long lines at the 4 KB cutoff; if the line lookup fails, it returns a null pointer, writes `len` back as `0`, and preserves the caller's existing `index`, `bpos`, and `epos` values. `ReadFileDataEndOfLine` reads from a byte position to the current line end; when `pos` is already at that line end, it returns an empty buffer and writes `len` back as `0`.
+`ReadFileDataLLineCut` follows the C++ reference semantics: it batches short lines and truncates long lines at the 4 KB cutoff; if the line lookup fails, it returns a null pointer, writes `len` back as `0`, and preserves the caller's existing `index`, `bpos`, and `epos` values; if the lookup succeeds but the readable range is empty, it returns an empty buffer instead of reporting failure. `ReadFileDataEndOfLine` reads from a byte position to the current line end; when `pos` is already at that line end, it returns an empty buffer and writes `len` back as `0`.
 
 ## 7. Huge mmap Pointer
 
