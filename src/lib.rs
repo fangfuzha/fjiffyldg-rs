@@ -770,6 +770,26 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_restart_scan_negative_offset_clears_previous_index() {
+        let mut loaded = NamedTempFile::new().unwrap();
+        loaded.write_all(b"old\nlines\n").unwrap();
+        let loaded_path = CString::new(loaded.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, loaded_path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+        assert_eq!(ffi::GetFileLineCount(handle), 3);
+
+        ffi::RestartScanFile(handle, loaded_path.as_ptr(), -1, 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        assert_eq!(ffi::GetFileLineCount(handle), 0);
+        assert_eq!(ffi::GetFileLinePos(handle, 0), -1);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_load_status_reports_unloaded_error_and_loaded() {
         let fjiffyldg = Fjiffyldg::new();
         assert_eq!(fjiffyldg.load_status(), Ok(false));

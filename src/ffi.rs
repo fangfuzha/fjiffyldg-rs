@@ -227,11 +227,12 @@ pub extern "C" fn RestartScanFile(
     utf: c_int,
 ) {
     ffi_guard((), || {
-        if offset < 0 {
-            return;
-        }
-
         if let Some(handle) = handle_mut(fm) {
+            if offset < 0 {
+                handle.model.request_stop_scan();
+                return;
+            }
+
             if !name.is_null() {
                 let Ok(path) = path_from_c(name) else {
                     return;
