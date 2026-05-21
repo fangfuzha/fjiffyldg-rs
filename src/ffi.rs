@@ -720,4 +720,20 @@ mod tests {
         BackstageRequestStop(fm);
         fjiffyldg_clear(fm);
     }
+
+    #[test]
+    fn get_file_line_index_stays_unavailable_while_scanning() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(&b"x\n".repeat(16 * 1024 * 1024)).unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+        let fm = fjiffyldg_create();
+
+        assert_eq!(LoadAndScanFile(fm, path.as_ptr()), 0);
+        assert!(unsafe { (*fm).model.is_scanning() });
+        assert_eq!(GetFileLineCount(fm), -1);
+        assert_eq!(GetFileLineIndex(fm, 0), -1);
+
+        BackstageRequestStop(fm);
+        fjiffyldg_clear(fm);
+    }
 }
