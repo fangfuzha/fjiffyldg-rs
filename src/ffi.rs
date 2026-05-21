@@ -350,11 +350,17 @@ pub extern "C" fn ReadFileDataLLineCut(
             &mut len_value,
         );
 
-        unsafe {
-            *index = index_value;
-            *bpos = bpos_value;
-            *epos = epos_value;
-            *len = len_value.min(c_uint::MAX as usize) as c_uint;
+        if data.is_some() {
+            unsafe {
+                *index = index_value;
+                *bpos = bpos_value;
+                *epos = epos_value;
+                *len = len_value.min(c_uint::MAX as usize) as c_uint;
+            }
+        } else {
+            unsafe {
+                *len = len_value.min(c_uint::MAX as usize) as c_uint;
+            }
         }
 
         handle.store_read_buffer(data, len)

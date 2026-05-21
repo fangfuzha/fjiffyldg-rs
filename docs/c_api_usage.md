@@ -148,7 +148,7 @@ if (data != 0) {
 - 调用方如需长期保存内容，应立即复制到自己的缓冲区。
 - 调用方不得 `free()` 返回指针。
 
-`ReadFileDataLLineCut` 按 C++ 参考实现语义读取短行批量数据，并对超长行执行 4KB 截断。`ReadFileDataEndOfLine` 可从指定行内位置读取到当前行末尾；如果 `pos` 恰好位于当前行尾，则返回空缓冲区并将 `len` 写回为 `0`。
+`ReadFileDataLLineCut` 按 C++ 参考实现语义读取短行批量数据，并对超长行执行 4KB 截断；如果行查找失败，则返回空指针、将 `len` 写回为 `0`，并保留调用方原有的 `index`、`bpos`、`epos`。`ReadFileDataEndOfLine` 可从指定行内位置读取到当前行末尾；如果 `pos` 恰好位于当前行尾，则返回空缓冲区并将 `len` 写回为 `0`。
 
 ## 7. Huge mmap 指针
 
@@ -219,7 +219,7 @@ if (mapped != 0) {
 | 接口                    | 签名                                                                                                                        | 参数                                                                           | 返回值                                             | 生命周期与注意事项                                                                                                                      |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `ReadFileData`          | `const char *ReadFileData(fjiffyldg_ptr fm, long long pos, unsigned int *len)`                                              | `fm`：句柄；`pos`：起始字节；`len`：输入最大读取长度、输出实际长度             | 成功返回内部缓冲区指针；失败返回空指针             | 指针由句柄持有，下一次读取可能覆盖；调用方需要长期保存时必须复制；负偏移会钳到文件起点，`pos` 到达或越过 EOF 时返回空缓冲区且 `len = 0` |
-| `ReadFileDataLLineCut`  | `const char *ReadFileDataLLineCut(fjiffyldg_ptr fm, long long *index, long long *bpos, long long *epos, unsigned int *len)` | `index`：输入/输出行号；`bpos`/`epos`：输入/输出读取边界；`len`：输入/输出长度 | 成功返回内部缓冲区指针；失败返回空指针             | 对短行批量读取，对超长行按 4KB 语义截断；输出参数会被推进                                                                               |
+| `ReadFileDataLLineCut`  | `const char *ReadFileDataLLineCut(fjiffyldg_ptr fm, long long *index, long long *bpos, long long *epos, unsigned int *len)` | `index`：输入/输出行号；`bpos`/`epos`：输入/输出读取边界；`len`：输入/输出长度 | 成功返回内部缓冲区指针；失败返回空指针             | 对短行批量读取，对超长行按 4KB 语义截断；成功时推进输出参数，失败时仅将 `len` 置为 `0` 并保留原有 `index`/`bpos`/`epos`                 |
 | `ReadFileDataEndOfLine` | `const char *ReadFileDataEndOfLine(fjiffyldg_ptr fm, long long index, long long pos, unsigned int *len)`                    | `index`：行号；`pos`：行内或文件字节位置；`len`：输入/输出长度                 | 成功返回内部缓冲区指针；失败返回空指针             | 从指定位置读取到当前行末尾；若 `pos` 已在该行末尾，则返回空缓冲区且 `len = 0`                                                           |
 | `GetFileMappedHuge`     | `const char *GetFileMappedHuge(fjiffyldg_ptr fm, const char *fileName, long long *bufferSize)`                              | `fm`：句柄；`fileName`：路径；`bufferSize`：输出映射大小                       | 成功返回只读 mmap 指针；失败返回空指针并将大小置 0 | 指针有效期到 `ClearHugeBuffer`、下一次 `GetFileMappedHuge` 或 `fjiffyldg_clear`                                                         |
 | `ClearHugeBuffer`       | `void ClearHugeBuffer(fjiffyldg_ptr fm)`                                                                                    | `fm`：句柄                                                                     | 无                                                 | 释放句柄持有的 huge mmap；此前返回的 mmap 指针立即失效                                                                                  |

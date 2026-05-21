@@ -338,6 +338,31 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_line_cut_preserves_bounds_when_lookup_fails() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"a\nb\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        let mut index = 99;
+        let mut bpos = 1234;
+        let mut epos = 5678;
+        let mut len = 42;
+        let data = ffi::ReadFileDataLLineCut(handle, &mut index, &mut bpos, &mut epos, &mut len);
+
+        assert!(data.is_null());
+        assert_eq!(index, 99);
+        assert_eq!(bpos, 1234);
+        assert_eq!(epos, 5678);
+        assert_eq!(len, 0);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_text_and_file_helpers_handle_boundaries() {
         let mut text = ptr::null();
         assert_eq!(ffi::GetUtf8TextCharCount(&mut text, 0), 0);
