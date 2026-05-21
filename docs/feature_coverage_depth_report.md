@@ -127,6 +127,7 @@ This table records only the public C ABI behaviors that are already locked down 
 | Queries while scanning is in progress            | `GetFileLinePos` may expose built prefixes; `GetFileLineIndex` and `GetFileLineLength` remain unavailable | Done        | `get_file_line_pos_exposes_scanned_prefix_while_scanning`, `get_file_line_index_stays_unavailable_while_scanning`, `test_c_ffi_line_length_stays_unavailable_while_scanning` |
 | `GetFileSizeByteCount` for missing files         | Returns `-1`, matching the C++ `GetFileLength` failure contract                                           | Done        | `test_c_ffi_get_file_size_missing_file_returns_reference_error`                                                                                                              |
 | File-write helpers with empty buffers            | A null buffer is accepted when `len == 0`; saving/appending empty content succeeds                        | Done        | `test_c_ffi_file_helpers_accept_null_empty_buffers`                                                                                                                          |
+| File helper severe failures                      | `ToCloneFile` / `ToSaveFile` / `ToAppendFile` / `ToConcatenateFile` return `-1` on failure                | Done        | `test_c_ffi_file_helpers_use_reference_failure_codes`                                                                                                                        |
 
 ## 10. Conclusion
 

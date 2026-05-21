@@ -82,6 +82,14 @@ fn result_code<T>(result: crate::Result<T>) -> c_int {
     }
 }
 
+/// 将文件 helper 的结果转换为与 C++ 参考实现一致的公开返回码。
+fn file_helper_code(result: crate::Result<()>) -> c_int {
+    match result {
+        Ok(()) => 0,
+        Err(_) => -1,
+    }
+}
+
 /// 捕获 FFI 边界内的 panic，避免 panic 跨越 C ABI。
 fn ffi_guard<T, F>(fallback: T, body: F) -> T
 where
@@ -558,14 +566,14 @@ pub extern "C" fn ToCloneFile(oldFileName: *const c_char, newFileName: *const c_
     ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
         let old_path = match path_from_c(oldFileName) {
             Ok(path) => path,
-            Err(error) => return error_code(error),
+            Err(_) => return -1,
         };
         let new_path = match path_from_c(newFileName) {
             Ok(path) => path,
-            Err(error) => return error_code(error),
+            Err(_) => return -1,
         };
 
-        result_code(clone_file(old_path, new_path))
+        file_helper_code(clone_file(old_path, new_path))
     })
 }
 
@@ -578,18 +586,18 @@ pub extern "C" fn ToSaveFile(
 ) -> c_int {
     ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
         if len < 0 {
-            return FjiffyldgError::InvalidOffset.to_error_code();
+            return -1;
         }
 
         let path = match path_from_c(fileName) {
             Ok(path) => path,
-            Err(error) => return error_code(error),
+            Err(_) => return -1,
         };
         let Some(data) = bytes_from_c_len(buffer, len as usize) else {
-            return FjiffyldgError::BufferTooSmall.to_error_code();
+            return -1;
         };
 
-        result_code(save_file(path, data))
+        file_helper_code(save_file(path, data))
     })
 }
 
@@ -602,18 +610,18 @@ pub extern "C" fn ToAppendFile(
 ) -> c_int {
     ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
         if len < 0 {
-            return FjiffyldgError::InvalidOffset.to_error_code();
+            return -1;
         }
 
         let path = match path_from_c(fileName) {
             Ok(path) => path,
-            Err(error) => return error_code(error),
+            Err(_) => return -1,
         };
         let Some(data) = bytes_from_c_len(buffer, len as usize) else {
-            return FjiffyldgError::BufferTooSmall.to_error_code();
+            return -1;
         };
 
-        result_code(append_file(path, data))
+        file_helper_code(append_file(path, data))
     })
 }
 
@@ -626,14 +634,14 @@ pub extern "C" fn ToConcatenateFile(
     ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
         let cat_path = match path_from_c(catFileName) {
             Ok(path) => path,
-            Err(error) => return error_code(error),
+            Err(_) => return -1,
         };
         let append_path = match path_from_c(appendFileName) {
             Ok(path) => path,
-            Err(error) => return error_code(error),
+            Err(_) => return -1,
         };
 
-        result_code(concatenate_files([append_path], cat_path))
+        file_helper_code(concatenate_files([append_path], cat_path))
     })
 }
 

@@ -235,13 +235,13 @@ if (mapped != 0) {
 
 ### 9.6 文件工具
 
-| 接口                   | 签名                                                                         | 参数                                                            | 返回值                          | 生命周期与注意事项                                                          |
-| ---------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------- |
-| `GetFileSizeByteCount` | `long long GetFileSizeByteCount(const char *name)`                           | `name`：路径字符串                                              | 成功返回文件大小；失败返回 `-1` | 返回单位是字节；对齐 C++ `GetFileLength` 的失败语义                         |
-| `ToCloneFile`          | `int ToCloneFile(const char *oldFileName, const char *newFileName)`          | `oldFileName`：源路径；`newFileName`：目标路径                  | `0` 成功；非 `0` 为错误码       | 目标文件会被创建或覆盖，具体行为遵循 Rust 文件操作实现                      |
-| `ToSaveFile`           | `int ToSaveFile(const char *fileName, const char *buffer, long long len)`    | `fileName`：目标路径；`buffer`：待写入字节；`len`：字节数       | `0` 成功；非 `0` 为错误码       | 保存 `buffer[0..len)` 到文件；`len == 0` 时允许空缓冲区；`len < 0` 返回错误 |
-| `ToAppendFile`         | `int ToAppendFile(const char *fileName, const char *buffer, long long len)`  | `fileName`：目标路径；`buffer`：待追加字节；`len`：字节数       | `0` 成功；非 `0` 为错误码       | 文件不存在时会创建；`len == 0` 时允许空缓冲区；调用方保留缓冲区所有权       |
-| `ToConcatenateFile`    | `int ToConcatenateFile(const char *catFileName, const char *appendFileName)` | `catFileName`：被追加的目标文件；`appendFileName`：读取来源文件 | `0` 成功；非 `0` 为错误码       | 将第二个文件内容追加到第一个文件末尾                                        |
+| 接口                   | 签名                                                                         | 参数                                                            | 返回值                          | 生命周期与注意事项                                                           |
+| ---------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
+| `GetFileSizeByteCount` | `long long GetFileSizeByteCount(const char *name)`                           | `name`：路径字符串                                              | 成功返回文件大小；失败返回 `-1` | 返回单位是字节；对齐 C++ `GetFileLength` 的失败语义                          |
+| `ToCloneFile`          | `int ToCloneFile(const char *oldFileName, const char *newFileName)`          | `oldFileName`：源路径；`newFileName`：目标路径                  | `0` 成功；失败返回 `-1`         | 目标文件会被创建或覆盖；对齐 C++ helper 的严重失败返回语义                   |
+| `ToSaveFile`           | `int ToSaveFile(const char *fileName, const char *buffer, long long len)`    | `fileName`：目标路径；`buffer`：待写入字节；`len`：字节数       | `0` 成功；失败返回 `-1`         | 保存 `buffer[0..len)` 到文件；`len == 0` 时允许空缓冲区；`len < 0` 返回 `-1` |
+| `ToAppendFile`         | `int ToAppendFile(const char *fileName, const char *buffer, long long len)`  | `fileName`：目标路径；`buffer`：待追加字节；`len`：字节数       | `0` 成功；失败返回 `-1`         | 文件不存在时会创建；`len == 0` 时允许空缓冲区；调用方保留缓冲区所有权        |
+| `ToConcatenateFile`    | `int ToConcatenateFile(const char *catFileName, const char *appendFileName)` | `catFileName`：被追加的目标文件；`appendFileName`：读取来源文件 | `0` 成功；失败返回 `-1`         | 将第二个文件内容追加到第一个文件末尾；缺失来源文件时按 C++ 语义返回 `-1`     |
 
 ## 10. 错误码约定
 

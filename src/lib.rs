@@ -397,6 +397,23 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_file_helpers_use_reference_failure_codes() {
+        let missing_src = CString::new("definitely_missing_fjiffyldg_clone_src.txt").unwrap();
+        let dst = CString::new("definitely_missing_fjiffyldg_clone_dst.txt").unwrap();
+        let append_src = CString::new("definitely_missing_fjiffyldg_concat_src.txt").unwrap();
+        let target_path = std::env::temp_dir().join("fjiffyldg-rs-helper-target.txt");
+        let target = CString::new(target_path.to_string_lossy().as_bytes()).unwrap();
+        let data = CString::new("hello").unwrap();
+
+        assert_eq!(ffi::ToCloneFile(missing_src.as_ptr(), dst.as_ptr()), -1);
+        assert_eq!(ffi::ToSaveFile(target.as_ptr(), data.as_ptr(), -1), -1);
+        assert_eq!(ffi::ToAppendFile(target.as_ptr(), data.as_ptr(), -1), -1);
+        assert_eq!(ffi::ToConcatenateFile(target.as_ptr(), append_src.as_ptr()), -1);
+
+        let _ = std::fs::remove_file(target_path);
+    }
+
+    #[test]
     fn test_c_ffi_load_file_only_reports_scan_not_started() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"line1\nline2\n").unwrap();
