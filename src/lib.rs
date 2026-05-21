@@ -379,6 +379,35 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_read_helpers_reject_null_output_pointers() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"line1\nline2\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        let mut index = 0;
+        let mut bpos = 0;
+        let mut epos = 0;
+        let mut len = 5;
+
+        assert!(ffi::ReadFileData(handle, 0, ptr::null_mut()).is_null());
+        assert!(ffi::ReadFileDataEndOfLine(handle, 0, 0, ptr::null_mut()).is_null());
+        assert!(ffi::ReadFileDataLLineCut(handle, ptr::null_mut(), &mut bpos, &mut epos, &mut len).is_null());
+        assert!(ffi::ReadFileDataLLineCut(handle, &mut index, ptr::null_mut(), &mut epos, &mut len).is_null());
+        assert!(ffi::ReadFileDataLLineCut(handle, &mut index, &mut bpos, ptr::null_mut(), &mut len).is_null());
+        assert!(ffi::ReadFileDataLLineCut(handle, &mut index, &mut bpos, &mut epos, ptr::null_mut()).is_null());
+
+        let data = ffi::ReadFileData(handle, 0, &mut len);
+        assert!(!data.is_null());
+        assert_eq!(len, 5);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_text_and_file_helpers_handle_boundaries() {
         let mut text = ptr::null();
         assert_eq!(ffi::CheckTextASCII(ptr::null(), 0), 0);
