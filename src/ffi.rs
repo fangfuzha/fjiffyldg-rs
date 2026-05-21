@@ -642,6 +642,7 @@ mod tests {
     use super::*;
     use std::ffi::CString;
     use std::io::Write;
+    use std::thread;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -688,6 +689,35 @@ mod tests {
         assert_eq!(size, 0);
         assert!(unsafe { (*fm).huge_mmap.is_none() });
 
+        fjiffyldg_clear(fm);
+    }
+
+    #[test]
+    fn get_file_line_pos_exposes_scanned_prefix_while_scanning() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(&b"x\n".repeat(16 * 1024 * 1024)).unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+        let fm = fjiffyldg_create();
+
+        assert_eq!(LoadAndScanFile(fm, path.as_ptr()), 0);
+        assert!(unsafe { (*fm).model.is_scanning() });
+        assert_eq!(GetFileLineCount(fm), -1);
+
+        let mut saw_partial_line_pos = false;
+        for _ in 0..10_000 {
+            if GetFileLinePos(fm, 0) == 0 {
+                saw_partial_line_pos = true;
+                break;
+            }
+            if !unsafe { (*fm).model.is_scanning() } {
+                break;
+            }
+            thread::yield_now();
+        }
+
+        assert!(saw_partial_line_pos);
+
+        BackstageRequestStop(fm);
         fjiffyldg_clear(fm);
     }
 }

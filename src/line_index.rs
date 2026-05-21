@@ -326,7 +326,11 @@ impl LineIndex {
 
     /// 获取指定行的起始字节位置
     pub fn get_line_pos(&self, index: usize) -> i64 {
-        let total_lines = *self.total_lines.read() as usize;
+        let total_lines = if self.is_scanned() {
+            *self.total_lines.read() as usize
+        } else {
+            self.direct_offsets.read().len() + self.extended_offsets.read().len()
+        };
 
         if index >= total_lines {
             return -1;
