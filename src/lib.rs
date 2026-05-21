@@ -381,8 +381,16 @@ mod tests {
     #[test]
     fn test_c_ffi_text_and_file_helpers_handle_boundaries() {
         let mut text = ptr::null();
+        assert_eq!(ffi::CheckTextASCII(ptr::null(), 0), 0);
+        assert_eq!(ffi::CheckWholeTextUtf8(ptr::null(), 0), 0);
+        assert_eq!(ffi::CheckExtractTextUtf8(ptr::null(), 0), 0);
         assert_eq!(ffi::GetUtf8TextCharCount(&mut text, 0), 0);
         assert!(text.is_null());
+
+        let utf8_prefix = b"a\xe4\xbd\xa0\xfftail";
+        let mut text = utf8_prefix.as_ptr().cast();
+        assert_eq!(ffi::GetUtf8TextCharCount(&mut text, utf8_prefix.len() as u32), 2);
+        assert_eq!(unsafe { text.offset_from(utf8_prefix.as_ptr().cast()) }, 4);
 
         let leading_continuation = b"\x80\x80abcdefghij";
         assert_eq!(

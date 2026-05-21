@@ -226,12 +226,12 @@ if (mapped != 0) {
 
 ### 9.5 编码检查
 
-| 接口                   | 签名                                                                     | 参数                                               | 返回值                                                     | 生命周期与注意事项                                                                         |
-| ---------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `CheckTextASCII`       | `unsigned int CheckTextASCII(const char *text, unsigned int len)`        | `text`：字节指针；`len`：长度                      | `0` 表示全部为 ASCII；非 `0` 表示发现非 ASCII 的位置或距离 | `text` 为空且 `len > 0` 时返回错误值；不要把返回值当作布尔 true 表示成功                   |
-| `CheckWholeTextUtf8`   | `unsigned int CheckWholeTextUtf8(const char *text, unsigned int len)`    | `text`：完整字节片段；`len`：长度                  | `0` 表示有效 UTF-8；非 `0` 表示无效位置或距离              | 适合完整校验输入缓冲区                                                                     |
-| `CheckExtractTextUtf8` | `unsigned int CheckExtractTextUtf8(const char *text, unsigned int len)`  | `text`：字节片段；`len`：长度                      | `0` 表示抽样范围有效；非 `0` 表示抽样发现无效 UTF-8        | 对齐 C++ 抽取式检查：忽略片段首尾可能被截断的 UTF-8 字符；不能替代需要严格保证时的完整校验 |
-| `GetUtf8TextCharCount` | `unsigned int GetUtf8TextCharCount(const char **text, unsigned int len)` | `text`：输入/输出字节指针地址；`len`：最大检查长度 | 返回 UTF-8 字符数，并把 `*text` 推进到已消费位置           | `text` 或 `*text` 为空时返回 0；调用方可用指针差计算已消费字节数                           |
+| 接口                   | 签名                                                                     | 参数                                               | 返回值                                                     | 生命周期与注意事项                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `CheckTextASCII`       | `unsigned int CheckTextASCII(const char *text, unsigned int len)`        | `text`：字节指针；`len`：长度                      | `0` 表示全部为 ASCII；非 `0` 表示发现非 ASCII 的位置或距离 | `len == 0` 时允许空指针；`text` 为空且 `len > 0` 时返回错误值；不要把返回值当作布尔 true 表示成功     |
+| `CheckWholeTextUtf8`   | `unsigned int CheckWholeTextUtf8(const char *text, unsigned int len)`    | `text`：完整字节片段；`len`：长度                  | `0` 表示有效 UTF-8；非 `0` 表示无效位置或距离              | 适合完整校验输入缓冲区                                                                                |
+| `CheckExtractTextUtf8` | `unsigned int CheckExtractTextUtf8(const char *text, unsigned int len)`  | `text`：字节片段；`len`：长度                      | `0` 表示抽样范围有效；非 `0` 表示抽样发现无效 UTF-8        | 对齐 C++ 抽取式检查：忽略片段首尾可能被截断的 UTF-8 字符；不能替代需要严格保证时的完整校验            |
+| `GetUtf8TextCharCount` | `unsigned int GetUtf8TextCharCount(const char **text, unsigned int len)` | `text`：输入/输出字节指针地址；`len`：最大检查长度 | 返回 UTF-8 字符数，并把 `*text` 推进到已消费位置           | 遇到非法或不完整 UTF-8 时停在该字节；`text` 或 `*text` 为空时返回 0；调用方可用指针差计算已消费字节数 |
 
 ### 9.6 文件工具
 
