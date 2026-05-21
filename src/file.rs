@@ -790,7 +790,7 @@ impl FileModel {
         let file_size = *self.file_size.read() as i64;
         let line_start = self.line_index.get_line_pos(index as usize);
 
-        if line_start < 0 || pos < line_start || pos >= file_size {
+        if line_start < 0 || pos < line_start || pos > file_size {
             *len = 0;
             return None;
         }
