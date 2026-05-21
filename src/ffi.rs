@@ -489,7 +489,7 @@ pub extern "C" fn GetFileSizeByteCount(name: *const c_char) -> c_longlong {
 
             get_file_size(path)
                 .map(|size| size.min(c_longlong::MAX as u64) as c_longlong)
-                .unwrap_or_else(|error| error_code(error) as c_longlong)
+                .unwrap_or(-1)
         },
     )
 }

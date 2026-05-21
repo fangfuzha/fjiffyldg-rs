@@ -378,6 +378,25 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_file_helpers_accept_null_empty_buffers() {
+        let temp = NamedTempFile::new().unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        assert_eq!(ffi::ToSaveFile(path.as_ptr(), ptr::null(), 0), 0);
+        assert_eq!(std::fs::read(temp.path()).unwrap(), b"");
+
+        assert_eq!(ffi::ToAppendFile(path.as_ptr(), ptr::null(), 0), 0);
+        assert_eq!(std::fs::read(temp.path()).unwrap(), b"");
+    }
+
+    #[test]
+    fn test_c_ffi_get_file_size_missing_file_returns_reference_error() {
+        let path = CString::new("definitely_missing_fjiffyldg_size_probe.txt").unwrap();
+
+        assert_eq!(ffi::GetFileSizeByteCount(path.as_ptr()), -1);
+    }
+
+    #[test]
     fn test_c_ffi_load_file_only_reports_scan_not_started() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"line1\nline2\n").unwrap();
