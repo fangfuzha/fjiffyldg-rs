@@ -129,6 +129,7 @@ This table records only the public C ABI behaviors that are already locked down 
 | File-write helpers with empty buffers            | A null buffer is accepted when `len == 0`; saving/appending empty content succeeds                              | Done        | `test_c_ffi_file_helpers_accept_null_empty_buffers`                                                                                                                          |
 | File helper severe failures                      | `ToCloneFile` / `ToSaveFile` / `ToAppendFile` / `ToConcatenateFile` return `-1` on failure                      | Done        | `test_c_ffi_file_helpers_use_reference_failure_codes`                                                                                                                        |
 | `CheckExtractTextUtf8` slice boundaries          | Ignores UTF-8 characters that may be truncated at either slice boundary and validates the complete middle range | Done        | `test_c_ffi_text_and_file_helpers_handle_boundaries`                                                                                                                         |
+| `RestartScanFile` provided path                  | Always reloads/scans the caller-provided `name` instead of reusing the already loaded file                      | Done        | `test_c_ffi_restart_scan_uses_provided_path`                                                                                                                                 |
 
 ## 10. Conclusion
 

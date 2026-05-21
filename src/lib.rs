@@ -706,6 +706,30 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_restart_scan_uses_provided_path() {
+        let mut loaded = NamedTempFile::new().unwrap();
+        loaded.write_all(b"loaded-only\n").unwrap();
+        let loaded_path = CString::new(loaded.path().to_string_lossy().as_bytes()).unwrap();
+
+        let mut rescan = NamedTempFile::new().unwrap();
+        rescan.write_all(b"a\nb\nc\n").unwrap();
+        let rescan_path = CString::new(rescan.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadFileOnly(handle, loaded_path.as_ptr()), 0);
+
+        ffi::RestartScanFile(handle, rescan_path.as_ptr(), 0, 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        assert_eq!(ffi::GetFileLineCount(handle), 4);
+        assert_eq!(ffi::GetFileLinePos(handle, 0), 0);
+        assert_eq!(ffi::GetFileLinePos(handle, 1), 2);
+        assert_eq!(ffi::GetFileLinePos(handle, 2), 4);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_load_status_reports_unloaded_error_and_loaded() {
         let fjiffyldg = Fjiffyldg::new();
         assert_eq!(fjiffyldg.load_status(), Ok(false));

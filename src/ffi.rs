@@ -232,11 +232,13 @@ pub extern "C" fn RestartScanFile(
         }
 
         if let Some(handle) = handle_mut(fm) {
-            if !handle.model.is_loaded() && !name.is_null() {
+            if !name.is_null() {
                 let Ok(path) = path_from_c(name) else {
                     return;
                 };
-                let _ = handle.model.load_and_scan(path);
+                if handle.model.load(path).is_err() {
+                    return;
+                }
             }
             let auto_detect = utf == -1;
             let _ = handle.model.handle().restart_scan_with_auto_detect(
