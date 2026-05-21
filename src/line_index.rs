@@ -77,6 +77,15 @@ impl LineIndex {
         self.is_scanned.store(true, Ordering::Release);
     }
 
+    /// 将空文件初始化为与 C++ 参考实现一致的单空行状态。
+    pub fn mark_empty_file(&self) {
+        self.clear();
+        self.direct_offsets.write().push(0);
+        self.line_lengths.write().push(0);
+        *self.total_lines.write() = 1;
+        self.mark_scanned();
+    }
+
     /// 获取总行数
     pub fn get_line_count(&self) -> i64 {
         if self.is_scanned() {

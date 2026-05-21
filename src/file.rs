@@ -339,7 +339,7 @@ impl FileModel {
         if file_size == 0 {
             *self.is_loaded.write() = true;
             *self.error_code.write() = 0;
-            self.line_index.mark_scanned();
+            self.line_index.mark_empty_file();
             return Ok(());
         }
 
