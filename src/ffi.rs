@@ -407,6 +407,9 @@ pub extern "C" fn GetFileMappedHuge(
             return ptr::null();
         }
 
+        // Every call invalidates any previously returned huge mapping.
+        handle.huge_mmap = None;
+
         let path = match path_from_c(fileName) {
             Ok(path) => path,
             Err(_) => {
@@ -662,6 +665,29 @@ mod tests {
         ClearHugeBuffer(fm);
 
         assert!(unsafe { (*fm).huge_mmap.is_none() });
+        fjiffyldg_clear(fm);
+    }
+
+    #[test]
+    fn get_file_mapped_huge_clears_previous_mapping_on_failure() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"hello mmap").unwrap();
+        let valid_path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+        let missing_path = CString::new("missing-file-for-huge-buffer.txt").unwrap();
+        let fm = fjiffyldg_create();
+        let mut size = 0;
+
+        let ptr = GetFileMappedHuge(fm, valid_path.as_ptr(), &mut size);
+
+        assert!(!ptr.is_null());
+        assert!(unsafe { (*fm).huge_mmap.is_some() });
+
+        let failed_ptr = GetFileMappedHuge(fm, missing_path.as_ptr(), &mut size);
+
+        assert!(failed_ptr.is_null());
+        assert_eq!(size, 0);
+        assert!(unsafe { (*fm).huge_mmap.is_none() });
+
         fjiffyldg_clear(fm);
     }
 }

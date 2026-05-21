@@ -166,7 +166,7 @@ if (mapped != 0) {
 注意事项：
 
 - 指针只读，调用方不要写入。
-- 指针有效期到 `ClearHugeBuffer(fm)`、下一次 `GetFileMappedHuge` 或 `fjiffyldg_clear(fm)`。
+- 指针有效期到 `ClearHugeBuffer(fm)`、下一次 `GetFileMappedHuge` 或 `fjiffyldg_clear(fm)`；下一次 `GetFileMappedHuge` 即使失败，也会让上一次返回的指针失效。
 - 空文件、打开失败或映射失败会返回空指针，并将 `bufferSize` 置为 0。
 
 ## 8. 编码和文件工具函数
@@ -221,7 +221,7 @@ if (mapped != 0) {
 | `ReadFileData`          | `const char *ReadFileData(fjiffyldg_ptr fm, long long pos, unsigned int *len)`                                              | `fm`：句柄；`pos`：起始字节；`len`：输入最大读取长度、输出实际长度             | 成功返回内部缓冲区指针；失败返回空指针             | 指针由句柄持有，下一次读取可能覆盖；调用方需要长期保存时必须复制；负偏移会钳到文件起点，`pos` 到达或越过 EOF 时返回空缓冲区且 `len = 0` |
 | `ReadFileDataLLineCut`  | `const char *ReadFileDataLLineCut(fjiffyldg_ptr fm, long long *index, long long *bpos, long long *epos, unsigned int *len)` | `index`：输入/输出行号；`bpos`/`epos`：输入/输出读取边界；`len`：输入/输出长度 | 成功返回内部缓冲区指针；失败返回空指针             | 对短行批量读取，对超长行按 4KB 语义截断；成功时推进输出参数，失败时仅将 `len` 置为 `0` 并保留原有 `index`/`bpos`/`epos`                 |
 | `ReadFileDataEndOfLine` | `const char *ReadFileDataEndOfLine(fjiffyldg_ptr fm, long long index, long long pos, unsigned int *len)`                    | `index`：行号；`pos`：行内或文件字节位置；`len`：输入/输出长度                 | 成功返回内部缓冲区指针；失败返回空指针             | 从指定位置读取到当前行末尾；若 `pos` 已在该行末尾，则返回空缓冲区且 `len = 0`                                                           |
-| `GetFileMappedHuge`     | `const char *GetFileMappedHuge(fjiffyldg_ptr fm, const char *fileName, long long *bufferSize)`                              | `fm`：句柄；`fileName`：路径；`bufferSize`：输出映射大小                       | 成功返回只读 mmap 指针；失败返回空指针并将大小置 0 | 指针有效期到 `ClearHugeBuffer`、下一次 `GetFileMappedHuge` 或 `fjiffyldg_clear`                                                         |
+| `GetFileMappedHuge`     | `const char *GetFileMappedHuge(fjiffyldg_ptr fm, const char *fileName, long long *bufferSize)`                              | `fm`：句柄；`fileName`：路径；`bufferSize`：输出映射大小                       | 成功返回只读 mmap 指针；失败返回空指针并将大小置 0 | 指针有效期到 `ClearHugeBuffer`、下一次 `GetFileMappedHuge` 或 `fjiffyldg_clear`；新的 `GetFileMappedHuge` 调用即使失败也会使旧指针失效  |
 | `ClearHugeBuffer`       | `void ClearHugeBuffer(fjiffyldg_ptr fm)`                                                                                    | `fm`：句柄                                                                     | 无                                                 | 释放句柄持有的 huge mmap；此前返回的 mmap 指针立即失效                                                                                  |
 
 ### 9.5 编码检查
