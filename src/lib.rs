@@ -482,6 +482,28 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_empty_file_load_only_keeps_scan_not_started() {
+        let temp = NamedTempFile::new().unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadFileOnly(handle, path.as_ptr()), 0);
+
+        assert_eq!(ffi::GetFileIsLoaded(handle), 0);
+        assert_eq!(ffi::GetFileLineCount(handle), 0);
+        assert_eq!(ffi::GetFileLinePos(handle, 0), -1);
+        assert_eq!(ffi::GetFileLineLength(handle, 0), -1);
+        assert_eq!(ffi::GetFileLineIndex(handle, 0), -1);
+
+        let mut len = 8;
+        let data = ffi::ReadFileData(handle, 0, &mut len);
+        assert!(!data.is_null());
+        assert_eq!(len, 0);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_read_to_end_of_line_returns_empty_at_line_boundary() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"line1\nline2\n").unwrap();
