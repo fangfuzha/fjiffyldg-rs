@@ -311,6 +311,22 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_load_missing_file_returns_reference_error() {
+        let missing_path = std::env::temp_dir().join("fjiffyldg-rs-missing-load-input.txt");
+        let _ = std::fs::remove_file(&missing_path);
+        let path = CString::new(missing_path.to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), -1);
+        assert_eq!(ffi::GetFileIsLoaded(handle), -1);
+        assert_eq!(ffi::LoadFileOnly(handle, path.as_ptr()), -1);
+        assert_eq!(ffi::GetFileIsLoaded(handle), -1);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_line_cut_overwrites_out_params() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"a\nb\n").unwrap();

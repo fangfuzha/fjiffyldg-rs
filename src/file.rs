@@ -6,7 +6,7 @@ use crate::line_index::LineIndex;
 use memmap2::{Mmap, MmapMut, MmapOptions};
 use parking_lot::{Condvar, Mutex, RwLock};
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Read, Write};
+use std::io::{BufWriter, ErrorKind, Read, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -317,6 +317,10 @@ impl FileModel {
 
         let file = match File::open(path) {
             Ok(f) => f,
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                *self.error_code.write() = FjiffyldgError::FileNotLoaded.to_error_code();
+                return Err(FjiffyldgError::FileNotLoaded);
+            }
             Err(_) => {
                 *self.error_code.write() = FjiffyldgError::FileInaccessible.to_error_code();
                 return Err(FjiffyldgError::FileInaccessible);
