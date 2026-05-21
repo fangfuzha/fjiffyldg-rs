@@ -368,6 +368,24 @@ mod tests {
         assert_eq!(ffi::GetUtf8TextCharCount(&mut text, 0), 0);
         assert!(text.is_null());
 
+        let leading_continuation = b"\x80\x80abcdefghij";
+        assert_eq!(
+            ffi::CheckExtractTextUtf8(
+                leading_continuation.as_ptr().cast(),
+                leading_continuation.len() as u32,
+            ),
+            0
+        );
+
+        let trailing_partial = b"abcdefghij\xe4\xbd";
+        assert_eq!(
+            ffi::CheckExtractTextUtf8(
+                trailing_partial.as_ptr().cast(),
+                trailing_partial.len() as u32,
+            ),
+            0
+        );
+
         let temp = NamedTempFile::new().unwrap();
         let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
         let data = CString::new("hello").unwrap();

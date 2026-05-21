@@ -187,46 +187,42 @@ pub fn check_extract_text_utf8(text: &[u8]) -> usize {
     }
 
     let mut start_offset = 0;
-    let mut end_offset = 0;
-
-    // 跳过首字节可能不完整的字符
-    if let Some(width) = get_utf8_char_width(text[0]) {
-        if width > 1 && width <= text.len() {
-            let mut cont = 1;
-            while cont < width && cont < text.len() {
-                if !is_valid_utf8_continuation(text[cont]) {
-                    return check_whole_text_utf8(text);
-                }
-                cont += 1;
-            }
-            start_offset = width;
-        }
+    while start_offset < 3
+        && start_offset < text.len()
+        && is_valid_utf8_continuation(text[start_offset])
+    {
+        start_offset += 1;
     }
 
-    // 跳过尾字节可能不完整的字符
-    if let Some(width) = get_utf8_char_width(text[text.len() - 1]) {
-        if width > 1 {
-            let remaining = &text[..text.len().saturating_sub(width)];
-            let last_char_start = remaining.len();
-
-            if last_char_start > 0 {
-                if let Some(last_width) = get_utf8_char_width(text[last_char_start]) {
-                    if last_width >= width {
-                        end_offset = last_width;
-                    }
-                }
-            }
-        }
-    }
-
-    let check_len = text.len() - start_offset - end_offset;
-    if check_len == 0 {
+    let text = &text[start_offset..];
+    let Some(first_width) = text.first().and_then(|byte| get_utf8_char_width(*byte)) else {
+        return 0;
+    };
+    if first_width == 0 {
         return 0;
     }
 
-    let remaining = check_whole_text_utf8(&text[start_offset..start_offset + check_len]);
-    if remaining > 0 {
-        remaining + end_offset
+    let mut trailing_slice = 1;
+    while trailing_slice < 4
+        && trailing_slice < text.len()
+        && is_valid_utf8_continuation(text[text.len() - trailing_slice])
+    {
+        trailing_slice += 1;
+    }
+
+    if text.len() < trailing_slice {
+        return 0;
+    }
+
+    let tail_start = text.len() - trailing_slice;
+    if get_utf8_char_width(text[tail_start]).unwrap_or(0) < trailing_slice {
+        return check_whole_text_utf8(text);
+    }
+
+    let check_len = text.len() - trailing_slice;
+    let remaining = check_whole_text_utf8(&text[..check_len]);
+    if remaining != 0 {
+        remaining + trailing_slice
     } else {
         0
     }
