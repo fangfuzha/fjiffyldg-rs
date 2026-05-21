@@ -315,6 +315,10 @@ impl LineIndex {
 
     /// 获取指定行的长度
     pub fn get_line_length(&self, index: usize) -> i64 {
+        if !self.is_scanned() {
+            return -1;
+        }
+
         let total_lines = *self.total_lines.read() as usize;
 
         if index >= total_lines {

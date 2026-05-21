@@ -528,6 +528,67 @@ mod tests {
     }
 
     #[test]
+    fn test_c_ffi_line_cut_returns_complete_line_with_short_budget() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"abcdef\nnext\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
+        ffi::WaitFileScanTaskFinished(handle);
+
+        let mut index = 0;
+        let mut bpos = -1;
+        let mut epos = -1;
+        let mut len = 3;
+        let data = ffi::ReadFileDataLLineCut(handle, &mut index, &mut bpos, &mut epos, &mut len);
+
+        assert!(!data.is_null());
+        let data = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), len as usize) };
+        assert_eq!(index, 0);
+        assert_eq!(bpos, 0);
+        assert_eq!(epos, 7);
+        assert_eq!(len, 7);
+        assert_eq!(data, b"abcdef\n");
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
+    fn test_c_ffi_line_length_stays_unavailable_while_scanning() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"first\n").unwrap();
+        for _ in 0..200_000 {
+            temp.write_all(b"padding line\n").unwrap();
+        }
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+
+        let handle = ffi::fjiffyldg_create();
+        assert_eq!(ffi::LoadFileOnly(handle, path.as_ptr()), 0);
+        ffi::BackstageRequestStop(handle);
+        ffi::RestartScanFile(handle, path.as_ptr(), 0, 0);
+
+        let mut observed_scanning = false;
+        for _ in 0..100_000 {
+            if ffi::GetFileLineCount(handle) == -1 && ffi::GetFileLinePos(handle, 0) == 0 {
+                let line_length = ffi::GetFileLineLength(handle, 0);
+                if ffi::GetFileLineCount(handle) == -1 {
+                    observed_scanning = true;
+                    assert_eq!(line_length, -1);
+                    break;
+                }
+            }
+            std::thread::yield_now();
+        }
+
+        assert!(observed_scanning);
+        ffi::WaitFileScanTaskFinished(handle);
+        assert_eq!(ffi::GetFileLineLength(handle, 0), 5);
+
+        ffi::fjiffyldg_clear(handle);
+    }
+
+    #[test]
     fn test_c_ffi_read_to_end_of_line_returns_empty_at_line_boundary() {
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"line1\nline2\n").unwrap();
