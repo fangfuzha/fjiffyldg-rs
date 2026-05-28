@@ -402,20 +402,20 @@ impl FileModel {
 
         // 加载文件数据
         if file_size <= USUALLY_IO_SIZE_MAX {
-            // 使用已打开的 file handle 读取，避免重复 open 静默失败
+            // 先在独立作用域内 try_clone，确保读锁在错误处理前释放，
+            // 避免 ok_or_else 中 write() 与 read() 同锁死锁。
+            let mut f = {
+                let guard = self.file.read();
+                guard.as_ref().and_then(|f| f.try_clone().ok())
+            }
+            .ok_or_else(|| {
+                *self.file_size.write() = 0;
+                *self.file.write() = None;
+                *self.error_code.write() = FjiffyldgError::StreamError.to_error_code();
+                FjiffyldgError::StreamError
+            })?;
+
             let mut buffer = Vec::new();
-            let mut f = self
-                .file
-                .read()
-                .as_ref()
-                .and_then(|f| f.try_clone().ok())
-                .ok_or_else(|| {
-                    // 回滚已提交的 file_size 和 file handle
-                    *self.file_size.write() = 0;
-                    *self.file.write() = None;
-                    *self.error_code.write() = FjiffyldgError::StreamError.to_error_code();
-                    FjiffyldgError::StreamError
-                })?;
             f.read_to_end(&mut buffer).map_err(|_| {
                 // 回滚已提交的 file_size 和 file handle
                 *self.file_size.write() = 0;

@@ -92,6 +92,7 @@ impl FjiffyldgError {
     /// - `5`：无效的行索引
     /// - `6`：缓冲区太小
     /// - `7`：编码错误
+    /// - `8`：写入不完整（大小校验失败）
     /// - `-2`：IO错误
     pub fn to_error_code(&self) -> i32 {
         match self {
@@ -99,7 +100,7 @@ impl FjiffyldgError {
             FjiffyldgError::FileInaccessible => 1,
             FjiffyldgError::StreamError => 2,
             FjiffyldgError::MmapError => 3,
-            FjiffyldgError::IncompleteWrite => 1,
+            FjiffyldgError::IncompleteWrite => 8,
             FjiffyldgError::InvalidOffset => 4,
             FjiffyldgError::InvalidLineIndex => 5,
             FjiffyldgError::BufferTooSmall => 6,
@@ -117,8 +118,6 @@ impl FjiffyldgError {
             1 => Some(FjiffyldgError::FileInaccessible),
             2 => Some(FjiffyldgError::StreamError),
             3 => Some(FjiffyldgError::MmapError),
-            // IncompleteWrite also maps to 1, but FileInaccessible
-            // is the canonical reverse mapping for load_status().
             4 => Some(FjiffyldgError::InvalidOffset),
             5 => Some(FjiffyldgError::InvalidLineIndex),
             6 => Some(FjiffyldgError::BufferTooSmall),
@@ -138,7 +137,9 @@ pub type Result<T> = std::result::Result<T, FjiffyldgError>;
 /// 用于行扫描时的多字节字符处理。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UtfMode {
-    /// 默认编码（UTF-8 或 ASCII）
+    /// 默认编码模式。在公开 API（`restart_scan`）中等同于
+    /// [`AutoDetect`](UtfMode::AutoDetect)：自动根据 BOM 头检测编码，
+    /// 未检测到 BOM 时按单字节（ASCII/UTF-8）处理。
     Default = 0,
     /// UTF-16 小端字节序
     Utf16Le = 1,

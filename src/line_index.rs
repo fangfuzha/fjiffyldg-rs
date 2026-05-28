@@ -516,11 +516,17 @@ impl LineIndex {
 
     /// 清空索引
     pub fn clear(&self) {
-        // 缓存重置放在最前面，避免并发读者命中已失效的缓存条目
+        // 同时持有 direct + extended 两个写锁，保证并发的 offset_at 读取不会
+        // 看到"direct 已清空但 extended 未清空"的不一致状态。
+        // 锁顺序与 get_line_pos 的读锁顺序一致（先 direct 后 extended），无死锁。
+        let mut dir = self.direct_offsets.write();
+        let mut ext = self.extended_offsets.write();
         *self.cached.write() = (u64::MAX, 0);
         self.is_scanned.store(false, Ordering::Release);
-        self.direct_offsets.write().clear();
-        self.extended_offsets.write().clear();
+        dir.clear();
+        ext.clear();
+        drop(dir);
+        drop(ext);
         self.line_lengths.write().clear();
         self.chunks.write().clear();
         *self.total_lines.write() = 0;

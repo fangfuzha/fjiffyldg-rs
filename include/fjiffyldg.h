@@ -68,8 +68,11 @@ FJIFFYLDG_API int GetFileIsLoaded(fjiffyldg_ptr fm);
 
 /**
  * 重新扫描已加载文件的行结构。
+ * 重新扫描已加载文件的行结构。
+ *
+ * @return 0 if successful, non-zero error code on failure.
  */
-FJIFFYLDG_API void RestartScanFile(fjiffyldg_ptr fm, const char *name, long long offset, int utf);
+FJIFFYLDG_API int RestartScanFile(fjiffyldg_ptr fm, const char *name, long long offset, int utf);
 
 /**
  * 阻塞等待后台行扫描完成。

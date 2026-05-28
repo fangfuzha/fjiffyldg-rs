@@ -227,36 +227,42 @@ pub extern "C" fn GetFileIsLoaded(fm: fjiffyldg_ptr) -> c_int {
 }
 
 /// 重新扫描已加载文件的行结构。
+/// 重新扫描已加载文件的行结构。
+///
+/// @return 0 if successful, non-zero error code on failure.
 #[no_mangle]
 pub extern "C" fn RestartScanFile(
     fm: fjiffyldg_ptr,
     name: *const c_char,
     offset: c_longlong,
     utf: c_int,
-) {
-    ffi_guard((), || {
-        if let Some(handle) = handle_mut(fm) {
-            if offset < 0 {
-                handle.model.request_stop_scan();
-                return;
-            }
+) -> c_int {
+    ffi_guard(FjiffyldgError::IoError.to_error_code(), || {
+        let Some(handle) = handle_mut(fm) else {
+            return FjiffyldgError::FileNotLoaded.to_error_code();
+        };
 
-            if !name.is_null() {
-                let Ok(path) = path_from_c(name) else {
-                    return;
-                };
-                if handle.model.load(path).is_err() {
-                    return;
-                }
-            }
-            let utf_mode = utf_mode_from_c(utf);
-            let auto_detect = utf_mode == UtfMode::AutoDetect;
-            let _ = handle.model.handle().restart_scan_with_auto_detect(
-                offset as u64,
-                utf_mode,
-                auto_detect,
-            );
+        if offset < 0 {
+            handle.model.request_stop_scan();
+            return 0;
         }
+
+        if !name.is_null() {
+            let path = match path_from_c(name) {
+                Ok(path) => path,
+                Err(error) => return error_code(error),
+            };
+            if let Err(error) = handle.model.load(path) {
+                return error_code(error);
+            }
+        }
+        let utf_mode = utf_mode_from_c(utf);
+        let auto_detect = utf_mode == UtfMode::AutoDetect;
+        result_code(handle.model.handle().restart_scan_with_auto_detect(
+            offset as u64,
+            utf_mode,
+            auto_detect,
+        ))
     })
 }
 
