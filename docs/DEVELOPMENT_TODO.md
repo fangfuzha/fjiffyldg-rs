@@ -284,7 +284,7 @@
 
 ### ✅ Task D.1: 添加便于开发者使用的双语文档
 
-- **文件**：[README.md](../README.md)、[README_EN.md](../README_EN.md)、[DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md)、[DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md)、[功能覆盖深度检查报告.md](功能覆盖深度检查报告.md)、[feature_coverage_depth_report.md](feature_coverage_depth_report.md)
+- **文件**：[README.md](../README.md)、[README_EN.md](../README_EN.md)、[DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md)、[DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md)、[功能覆盖深度检查报告.md](feature_coverage_depth_report.md)、[feature_coverage_depth_report.md](feature_coverage_depth_report_en.md)
 - **要求**：所有项目文档都需要提供中文和英文两个版本，并在文档头部链接到另一个语言版本
 - **状态**：✅ 已完成（2026-05-20）
 
@@ -377,7 +377,7 @@
 
 ### ⏳ Task V.1: v1.0 严格对应 C++ 可观察行为
 
-- **文件**：[功能覆盖深度检查报告.md](功能覆盖深度检查报告.md)、[feature_coverage_depth_report.md](feature_coverage_depth_report.md)、[tests/](../tests/)、[include/fjiffyldg.h](../include/fjiffyldg.h)、[src/ffi.rs](../src/ffi.rs)
+- **文件**：[功能覆盖深度检查报告.md](feature_coverage_depth_report.md)、[feature_coverage_depth_report.md](feature_coverage_depth_report_en.md)、[tests/](../tests/)、[include/fjiffyldg.h](../include/fjiffyldg.h)、[src/ffi.rs](../src/ffi.rs)
 - **目标**：第一个正式版本优先建立“Rust 版可可靠替代 C++ 版”的可信基线。
 - **要求**：
     - 公开 C ABI 的函数名、签名、返回值、错误码、空指针、越界、空文件等边界行为与 C++ 参考实现严格对齐
@@ -408,7 +408,7 @@
 
 ## 📚 参考资源
 
-- **功能覆盖报告**：[功能覆盖深度检查报告.md](功能覆盖深度检查报告.md) / [feature_coverage_depth_report.md](feature_coverage_depth_report.md)
+- **功能覆盖报告**：[功能覆盖深度检查报告.md](feature_coverage_depth_report.md) / [feature_coverage_depth_report.md](feature_coverage_depth_report_en.md)
 - **开发 TODO**：[DEVELOPMENT_TODO.md](DEVELOPMENT_TODO.md) / [DEVELOPMENT_TODO_EN.md](DEVELOPMENT_TODO_EN.md)
 - **C++ 参考实现**：[reference/fjiffyldg/Fjiffyldg/](../reference/fjiffyldg/Fjiffyldg/)
 - **Rust 源代码**：[src/](../src/)

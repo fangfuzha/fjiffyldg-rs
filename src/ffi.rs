@@ -12,7 +12,9 @@ use crate::encoding::{
     get_utf8_char_count_with_offset,
 };
 use crate::error::{FjiffyldgError, UtfMode};
-use crate::file::{append_file, clone_file, concatenate_files, get_file_size, save_file};
+use crate::file::{
+    append_file, clone_file, concatenate_files, get_file_size, save_file, MMAP_CHUNK_SIZE,
+};
 use crate::Fjiffyldg;
 use memmap2::{Mmap, MmapOptions};
 use std::ffi::CStr;
@@ -83,9 +85,14 @@ fn result_code<T>(result: crate::Result<T>) -> c_int {
 }
 
 /// 将文件 helper 的结果转换为与 C++ 参考实现一致的公开返回码。
+///
+/// - `0`：成功
+/// - `1`：操作不完整（写后大小校验失败）
+/// - `-1`：其他错误
 fn file_helper_code(result: crate::Result<()>) -> c_int {
     match result {
         Ok(()) => 0,
+        Err(FjiffyldgError::IncompleteWrite) => 1,
         Err(_) => -1,
     }
 }
@@ -457,7 +464,16 @@ pub extern "C" fn GetFileMappedHuge(
             return ptr::null();
         }
 
-        match unsafe { MmapOptions::new().map(&file) } {
+        // 32 位平台受虚拟地址空间限制（~3GB），最多映射 1GB 分块；
+        // 64 位平台地址空间充裕（128TB），映射整个文件。
+        let map_result = if cfg!(target_pointer_width = "32") {
+            let map_len = file_size.min(MMAP_CHUNK_SIZE) as usize;
+            unsafe { MmapOptions::new().offset(0).len(map_len).map(&file) }
+        } else {
+            unsafe { MmapOptions::new().map(&file) }
+        };
+
+        match map_result {
             Ok(mmap) => {
                 unsafe {
                     *bufferSize = mmap.len().min(c_longlong::MAX as usize) as c_longlong;

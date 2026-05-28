@@ -22,8 +22,10 @@ const CRITICAL_LONGLINE_LEN: usize = 4 * KB;
 /// 大文件写入时使用的缓冲区大小：8MB
 const LARGE_WRITE_BUFFER_SIZE: usize = 8 * MB;
 /// 大文件映射分块大小：1GB
-#[allow(dead_code)]
-const MMAP_CHUNK_SIZE: u64 = 1024 * MB as u64;
+///
+/// 32 位平台虚拟地址空间有限（~3GB），必须分块映射；
+/// 64 位平台地址空间充裕（128TB），此值用于初始窗口大小。
+pub(crate) const MMAP_CHUNK_SIZE: u64 = 1024 * MB as u64;
 
 /// 后台扫描状态与完成通知
 struct ScanState {
@@ -330,8 +332,8 @@ impl FileModel {
         let metadata = match file.metadata() {
             Ok(m) => m,
             Err(_) => {
-                *self.error_code.write() = FjiffyldgError::StreamError.to_error_code();
-                return Err(FjiffyldgError::StreamError);
+                *self.error_code.write() = FjiffyldgError::FileInaccessible.to_error_code();
+                return Err(FjiffyldgError::FileInaccessible);
             }
         };
 
@@ -353,12 +355,22 @@ impl FileModel {
 
         // 加载文件数据
         if file_size <= USUALLY_IO_SIZE_MAX {
+            // 使用已打开的 file handle 读取，避免重复 open 静默失败
             let mut buffer = Vec::new();
-            if let Ok(mut f) = File::open(path) {
-                if f.read_to_end(&mut buffer).is_ok() {
-                    *self.data.write() = Some(Arc::<[u8]>::from(buffer));
-                }
-            }
+            let mut f = self
+                .file
+                .read()
+                .as_ref()
+                .and_then(|f| f.try_clone().ok())
+                .ok_or_else(|| {
+                    *self.error_code.write() = FjiffyldgError::StreamError.to_error_code();
+                    FjiffyldgError::StreamError
+                })?;
+            f.read_to_end(&mut buffer).map_err(|_| {
+                *self.error_code.write() = FjiffyldgError::StreamError.to_error_code();
+                FjiffyldgError::StreamError
+            })?;
+            *self.data.write() = Some(Arc::<[u8]>::from(buffer));
         } else {
             let window_len = file_size.min(*self.mmap_chunk_size.read());
             match self.map_file_window(0, window_len) {
@@ -1108,24 +1120,57 @@ pub fn clone_file<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<()> 
     let file_size = get_file_size(src)?;
 
     if file_size > USUALLY_IO_SIZE_MAX {
-        let file = File::open(src).map_err(|_| FjiffyldgError::FileInaccessible)?;
-        let mmap = unsafe { Mmap::map(&file) }.map_err(|_| FjiffyldgError::MmapError)?;
-        save_file(dst, &mmap)?;
+        clone_large_file(src, dst)?;
     } else {
         std::fs::copy(src, dst)
             .map(|_| ())
             .map_err(|_| FjiffyldgError::StreamError)?;
     }
 
+    // 写后校验：目标文件大小应与源文件一致
+    let actual = get_file_size(dst).map_err(|_| FjiffyldgError::IncompleteWrite)?;
+    if actual != file_size {
+        return Err(FjiffyldgError::IncompleteWrite);
+    }
+    Ok(())
+}
+
+/// 大文件克隆 —— 平台特化实现。
+///
+/// 64 位平台使用 mmap 映射整个文件以获得最佳性能；
+/// 32 位平台使用缓冲 I/O 以避免虚拟地址空间不足。
+#[cfg(not(target_pointer_width = "32"))]
+fn clone_large_file(src: &Path, dst: &Path) -> Result<()> {
+    let file = File::open(src).map_err(|_| FjiffyldgError::FileInaccessible)?;
+    let mmap = unsafe { Mmap::map(&file) }.map_err(|_| FjiffyldgError::MmapError)?;
+    save_file(dst, &mmap)
+}
+
+/// 大文件克隆 —— 32 位平台使用缓冲 I/O。
+#[cfg(target_pointer_width = "32")]
+fn clone_large_file(src: &Path, dst: &Path) -> Result<()> {
+    copy_file_buffered(src, dst)
+}
+
+/// 使用缓冲 I/O 复制文件（适用于 32 位平台虚拟地址空间受限场景）。
+#[cfg(target_pointer_width = "32")]
+fn copy_file_buffered(src: &Path, dst: &Path) -> Result<()> {
+    let src_file = File::open(src).map_err(|_| FjiffyldgError::FileInaccessible)?;
+    let dst_file = File::create(dst).map_err(|_| FjiffyldgError::FileInaccessible)?;
+    let mut reader = std::io::BufReader::with_capacity(BUFFER_SIZE, src_file);
+    let mut writer = std::io::BufWriter::with_capacity(BUFFER_SIZE, dst_file);
+    std::io::copy(&mut reader, &mut writer).map_err(|_| FjiffyldgError::StreamError)?;
+    writer.flush().map_err(|_| FjiffyldgError::StreamError)?;
     Ok(())
 }
 
 /// 保存内容到文件
 pub fn save_file<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
     let path = path.as_ref();
+    let expected_len = data.len() as u64;
 
-    if data.len() as u64 > USUALLY_IO_SIZE_MAX {
-        save_large_file(path, data)
+    if expected_len > USUALLY_IO_SIZE_MAX {
+        save_large_file(path, data)?;
     } else {
         let mut file = OpenOptions::new()
             .write(true)
@@ -1135,16 +1180,27 @@ pub fn save_file<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
             .map_err(|_| FjiffyldgError::FileInaccessible)?;
 
         file.write_all(data)
-            .map_err(|_| FjiffyldgError::StreamError)
+            .map_err(|_| FjiffyldgError::StreamError)?;
     }
+
+    // 写后校验：文件大小应与预期一致
+    let actual = get_file_size(path).map_err(|_| FjiffyldgError::IncompleteWrite)?;
+    if actual != expected_len {
+        return Err(FjiffyldgError::IncompleteWrite);
+    }
+    Ok(())
 }
 
 /// 追加内容到文件
 pub fn append_file<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
     let path = path.as_ref();
+    let append_len = data.len() as u64;
 
-    if data.len() as u64 > USUALLY_IO_SIZE_MAX {
-        append_large_data(path, data)
+    // 记录追加前的文件大小（文件可能不存在）
+    let size_before = get_file_size(path).unwrap_or(0);
+
+    if append_len > USUALLY_IO_SIZE_MAX {
+        append_large_data(path, data)?;
     } else {
         let mut file = OpenOptions::new()
             .create(true)
@@ -1153,8 +1209,15 @@ pub fn append_file<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
             .map_err(|_| FjiffyldgError::FileInaccessible)?;
 
         file.write_all(data)
-            .map_err(|_| FjiffyldgError::StreamError)
+            .map_err(|_| FjiffyldgError::StreamError)?;
     }
+
+    // 写后校验：文件大小应增长了 append_len
+    let actual = get_file_size(path).map_err(|_| FjiffyldgError::IncompleteWrite)?;
+    if actual != size_before + append_len {
+        return Err(FjiffyldgError::IncompleteWrite);
+    }
+    Ok(())
 }
 
 /// 合并多个文件
@@ -1163,6 +1226,9 @@ pub fn concatenate_files<P: AsRef<Path>, I: IntoIterator<Item = P>>(
     output: P,
 ) -> Result<()> {
     let output = output.as_ref();
+    let size_before = get_file_size(output).unwrap_or(0);
+    let mut expected_total_size = size_before;
+
     let mut output_file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -1171,12 +1237,11 @@ pub fn concatenate_files<P: AsRef<Path>, I: IntoIterator<Item = P>>(
     for file_path in files {
         let file_path = file_path.as_ref();
         let file_size = get_file_size(file_path)?;
+        expected_total_size += file_size;
 
         if file_size > USUALLY_IO_SIZE_MAX {
             drop(output_file);
-            let input_file = File::open(file_path).map_err(|_| FjiffyldgError::FileInaccessible)?;
-            let mmap = unsafe { Mmap::map(&input_file) }.map_err(|_| FjiffyldgError::MmapError)?;
-            append_file(output, &mmap)?;
+            concatenate_large_file(file_path, output)?;
             output_file = OpenOptions::new()
                 .append(true)
                 .open(output)
@@ -1189,5 +1254,36 @@ pub fn concatenate_files<P: AsRef<Path>, I: IntoIterator<Item = P>>(
         }
     }
 
+    // 写后校验：文件大小应与追加前大小 + 所有源文件大小之和一致
+    let actual = get_file_size(output).map_err(|_| FjiffyldgError::IncompleteWrite)?;
+    if actual != expected_total_size {
+        return Err(FjiffyldgError::IncompleteWrite);
+    }
+    Ok(())
+}
+
+/// 向输出文件追加大文件内容 —— 平台特化实现。
+///
+/// 64 位平台使用 mmap；32 位平台使用缓冲 I/O 以避免地址空间不足。
+#[cfg(not(target_pointer_width = "32"))]
+fn concatenate_large_file(src: &Path, dst: &Path) -> Result<()> {
+    let input_file = File::open(src).map_err(|_| FjiffyldgError::FileInaccessible)?;
+    let mmap = unsafe { Mmap::map(&input_file) }.map_err(|_| FjiffyldgError::MmapError)?;
+    append_file(dst, &mmap)
+}
+
+/// 向输出文件追加大文件内容 —— 32 位平台使用缓冲 I/O。
+#[cfg(target_pointer_width = "32")]
+fn concatenate_large_file(src: &Path, dst: &Path) -> Result<()> {
+    let src_file = File::open(src).map_err(|_| FjiffyldgError::FileInaccessible)?;
+    let dst_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dst)
+        .map_err(|_| FjiffyldgError::FileInaccessible)?;
+    let mut reader = std::io::BufReader::with_capacity(BUFFER_SIZE, src_file);
+    let mut writer = std::io::BufWriter::with_capacity(BUFFER_SIZE, dst_file);
+    std::io::copy(&mut reader, &mut writer).map_err(|_| FjiffyldgError::StreamError)?;
+    writer.flush().map_err(|_| FjiffyldgError::StreamError)?;
     Ok(())
 }

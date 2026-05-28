@@ -1,143 +1,214 @@
-# Rust Version vs C++ Reference Implementation - Coverage Depth Report
+# Rust 版本 vs C++ 参考实现 - 功能覆盖深度检查报告
 
-[中文文档](功能覆盖深度检查报告.md)
+[English](feature_coverage_depth_report_en.md)
 
-**Review date**: 2026-05-20
-**Overall assessment**: The Rust version covers the core C++ feature set. The remaining work is focused on real huge-file benchmarking and broader release validation.
+**检查日期**：2026-05-20
+**总体评估**：核心功能已覆盖，基础架构完整，首批关键正确性缺口已修复，剩余重点集中在真实超大文件基准验证与发布配套
 
 ---
 
-## 1. Public API Coverage
+## 1. 公共 API 覆盖对比
 
-| C++ API                                    | Rust counterpart                                                      | Status | Notes                                                                          |
-| ------------------------------------------ | --------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------ |
-| `fjiffyldg_create()` / `fjiffyldg_clear()` | `ffi::fjiffyldg_create()` / `ffi::fjiffyldg_clear()`                  | Done   | Opaque C ABI handle                                                            |
-| `LoadAndScanFile()`                        | `load_and_scan()`                                                     | Done   | Implemented                                                                    |
-| `LoadFileOnly()`                           | `load()`                                                              | Done   | Implemented                                                                    |
-| `GetFileIsLoaded()`                        | `is_loaded()` / `load_status()` / `error_code()`                      | Done   | Keeps bool convenience API and exposes detailed status                         |
-| `RestartScanFile(offset, utf)`             | `restart_scan(offset, utf_mode)`                                      | Done   | Supports offset and UTF mode restart scanning                                  |
-| `WaitFileScanTaskFinished()`               | `wait_scan()`                                                         | Done   | Uses `Condvar` completion notification                                         |
-| `BackstageRequestStop()`                   | `request_stop_scan()` / `ffi::BackstageRequestStop()`                 | Done   | Cancels scanning and clears current index                                      |
-| Line count/position/length/index queries   | `line_count()`, `line_pos()`, `line_length()`, `line_at_pos()`        | Done   | Implemented                                                                    |
-| `ReadFileData()`                           | `read()`                                                              | Done   | Implemented                                                                    |
-| `ReadFileDataLLineCut()`                   | `read_line_cut()`                                                     | Done   | Supports short-line batching and 4 KB long-line truncation                     |
-| `ReadFileDataEndOfLine()`                  | `read_to_line_end()`                                                  | Done   | Implemented                                                                    |
-| `GetFileMappedHuge()`                      | `ffi::GetFileMappedHuge()` / `get_huge_buffer()`                      | Done   | FFI returns a real mmap pointer; Rust high-level API keeps safe copy semantics |
-| `ClearHugeBuffer()`                        | `ffi::ClearHugeBuffer()`                                              | Done   | Releases the mmap resource held by the FFI handle                              |
-| File helpers                               | `clone_file()`, `save_file()`, `append_file()`, `concatenate_files()` | Done   | Large inputs use mmap or large-buffer paths                                    |
+| C++ API                                    | Rust 对应                                             | 状态 | 备注                                          |
+| ------------------------------------------ | ----------------------------------------------------- | ---- | --------------------------------------------- |
+| `fjiffyldg_create()` / `fjiffyldg_clear()` | `ffi::fjiffyldg_create()` / `ffi::fjiffyldg_clear()`  | ✅   | 已提供 opaque handle C ABI                    |
+| `LoadAndScanFile()`                        | `load_and_scan()`                                     | ✅   | 完整实现                                      |
+| `LoadFileOnly()`                           | `load()`                                              | ✅   | 完整实现                                      |
+| `GetFileIsLoaded()`                        | `is_loaded()` / `load_status()` / `error_code()`      | ✅   | 保留 bool 快捷查询，并提供详细状态            |
+| `RestartScanFile(offset, utf)`             | `restart_scan(offset, utf_mode)`                      | ✅   | 已支持指定 offset/UTF 模式重扫                |
+| `WaitFileScanTaskFinished()`               | `wait_scan()`                                         | ✅   | 使用 Condvar 完成通知等待                     |
+| `BackstageRequestStop()`                   | `request_stop_scan()` / `ffi::BackstageRequestStop()` | ✅   | 已支持取消后台扫描并清空当前索引              |
+| `GetFileLineCount()`                       | `line_count()`                                        | ✅   | 完整实现                                      |
+| `GetFileLinePos()`                         | `line_pos()`                                          | ✅   | 完整实现                                      |
+| `GetFileLineLength()`                      | `line_length()`                                       | ✅   | 完整实现                                      |
+| `GetFileLineIndex()`                       | `line_at_pos()`                                       | ✅   | 完整实现                                      |
+| `ReadFileData()`                           | `read()`                                              | ✅   | 完整实现                                      |
+| `ReadFileDataLLineCut()`                   | `read_line_cut()`                                     | ✅   | 支持短行批量读取与 4KB 长行截断               |
+| `ReadFileDataEndOfLine()`                  | `read_to_line_end()`                                  | ✅   | 完整实现                                      |
+| `GetFileMappedHuge()`                      | `ffi::GetFileMappedHuge()` / `get_huge_buffer()`      | ✅   | FFI 返回真实 mmap 指针；Rust 高层保留安全拷贝 |
+| `ClearHugeBuffer()`                        | `ffi::ClearHugeBuffer()`                              | ✅   | 释放 FFI 句柄持有的 mmap 资源                 |
+| `GetFileSizeByteCount()`                   | `get_file_size()`                                     | ✅   | 完整实现                                      |
+| `ToCloneFile()`                            | `clone_file()`                                        | ✅   | 大文件输入走 mmap + 映射写入路径              |
+| `ToSaveFile()`                             | `save_file()`                                         | ✅   | 大缓冲保存走可写 mmap                         |
+| `ToAppendFile()`                           | `append_file()`                                       | ✅   | 目标不存在时自动创建，并对大输入走大缓冲追加  |
+| `ToConcatenateFile()`                      | `concatenate_files()`                                 | ✅   | 保持追加语义，并对大输入走 mmap               |
 
-## 2. Encoding Coverage
+---
 
-| C++ feature                                  | Rust status | Notes                                                      |
-| -------------------------------------------- | ----------- | ---------------------------------------------------------- |
-| UTF-8/UTF-16/UTF-32 BOM detection            | Done        | UTF-32LE/BE detection is covered                           |
-| ASCII check with 8-byte mask                 | Done        | Equivalent optimized implementation                        |
-| Whole UTF-8 validation                       | Done        | Implemented                                                |
-| Extracted UTF-8 validation                   | Done        | Implemented                                                |
-| `GetUtf8TextCharCount()` pointer advancement | Done        | `get_utf8_char_count_with_offset()` reports consumed bytes |
-| UTF-16/UTF-32 to UTF-8 conversion            | Done        | UTF-16 uses `encoding_rs`; UTF-32 uses native conversion   |
+## 2. 编码检测对比
 
-## 3. File Loading and I/O
+| C++ 功能                           | Rust 實現 | 狀態 | 備註                                       |
+| ---------------------------------- | --------- | ---- | ------------------------------------------ |
+| BOM 檢測 UTF-32LE (`0xFEFF`)       | ✅        | ✅   | 已实现                                     |
+| BOM 檢測 UTF-32BE (`0xFFFE0000`)   | ✅        | ✅   | 已实现                                     |
+| BOM 檢測 UTF-16LE (`0xFFFE`)       | ✅        | ✅   | 已實現                                     |
+| BOM 檢測 UTF-16BE (`0xFEFF`)       | ✅        | ✅   | 已實現                                     |
+| BOM 檢測 UTF-8 (`EF BB BF`)        | ✅        | ✅   | 已實現                                     |
+| `CheckTextASCII()` SIMD 8字節掩碼  | ✅        | ✅   | 等價的 SIMD 優化                           |
+| `CheckWholeTextUtf8()`             | ✅        | ✅   | 已實現                                     |
+| `CheckExtractTextUtf8()`           | ✅        | ✅   | 已實現                                     |
+| `GetUtf8TextCharCount()` 指针推进  | ✅        | ✅   | 新增 `get_utf8_char_count_with_offset()`   |
+| `convert_to_utf8()` UTF-16/32 转换 | ✅        | ✅   | UTF-16 使用 `encoding_rs`，UTF-32 原生转换 |
 
-| C++ feature                          | Rust status              | Notes                                                                                                     |
-| ------------------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------- |
-| Small-file direct buffer             | Done                     | Files up to 10 MB use memory buffers                                                                      |
-| Large-file mmap                      | Done                     | Uses windowed mmap access                                                                                 |
-| 1 GB mmap chunks                     | Done                     | Read and background scan both advance through mmap windows                                                |
-| `BUFFER_SIZE` 128 KB default         | Done                     | Defined and used                                                                                          |
-| `GetFileMappedHuge` internal pointer | Done                     | FFI returns a handle-owned real mmap pointer                                                              |
-| Large clone/save/append/concat paths | Done                     | Uses mmap or large buffered paths                                                                         |
-| `FILEBLOCK` 1 MB stream block        | Intentionally not reused | Rust keeps a simpler full small-file buffer design                                                        |
-| C++ header RAII wrapper              | Done                     | cbindgen configuration emits the lightweight `Fjiffyldg::Fjiffyldg` wrapper                               |
-| C API usage documentation            | Done                     | Bilingual guides cover generation, build, link, lifetime, maintenance flows, and a complete API reference |
-| C/C++ link-and-run smoke             | Done                     | The check script builds the release dynamic library, links C/C++ smoke, and runs it                       |
+**已修复**：UTF-32 BOM 检测、UTF-32 转 UTF-8、UTF-8 字符计数消费字节数均已补齐单元测试。
 
-## 4. Line Index System
+---
 
-| Layer / function                  | Rust status | Notes                                                                        |
-| --------------------------------- | ----------- | ---------------------------------------------------------------------------- |
-| Direct offsets for first 1M lines | Done        | `direct_offsets: Vec<u32>`                                                   |
-| Extended offsets beyond 4 GB      | Done        | `extended_offsets: Vec<u64>`                                                 |
-| Chunk index                       | Done        | `chunks: Vec<ChunkIndex>` is populated and used for bounds narrowing         |
-| Chunk capacity                    | Done        | Aligned with the C++ 8,388,608 limit                                         |
-| Overstep handling                 | Done        | Tracks the first overflow position and narrows searches after the last chunk |
-| Cached line/position              | Done        | `cached_line` / `cached_pos`                                                 |
-| `GetLindexPos` equivalent         | Done        | `get_line_pos()` uses chunk/overstep search bounds and exact offsets         |
-| `GetLineByPos` equivalent         | Done        | `get_line_by_pos()` uses chunk/overstep bounds                               |
-| Line length calculation           | Done        | CRLF, UTF-16LE/BE, and UTF-32LE/BE byte offsets are covered                  |
+## 3. 文件加载与读写
 
-## 5. Error Handling
+| C++ 特性                         | Rust 实现 | 状态 | 备注                                                               |
+| -------------------------------- | --------- | ---- | ------------------------------------------------------------------ |
+| ≤10MB 流式读取                   | ✅        | ✅   | 等價實現                                                           |
+| >10MB 内存映射                   | ✅        | ✅   | 使用 mmap 窗口读取                                                 |
+| 1GB 分块映射 (`MMAP_FILECHUNK`)  | ✅        | ✅   | 读取与后台扫描均按窗口动态推进                                     |
+| 128KB 默认缓冲区 (`BUFFER_SIZE`) | ✅        | ✅   | 已定义                                                             |
+| `GetFileMappedHuge` 返回内部指针 | ✅        | ✅   | FFI 返回句柄持有的真实 mmap 指针                                   |
+| 大文件 clone/save mmap 优化      | ✅        | ✅   | clone/save/concat 已走 mmap/大缓冲路径                             |
+| `FILEBLOCK` 1MB 流块大小         | ❌        | ❌   | Rust 小文件读取完整缓冲，刻意不复用 U++ 流块实现                   |
+| C++ 头文件 RAII 包装             | ✅        | ✅   | 由 `cbindgen` 配置生成轻量 `Fjiffyldg::Fjiffyldg` 包装             |
+| C API 使用文档                   | ✅        | ✅   | 已提供中英双语使用指南，覆盖生成、构建、链接、生命周期和全接口参考 |
+| C/C++ 链接运行 smoke             | ✅        | ✅   | 检查脚本会构建 release 动态库、链接 C/C++ smoke 并运行             |
 
-The Rust version maps C-compatible error codes while also exposing richer Rust errors: `InvalidOffset`, `InvalidLineIndex`, `BufferTooSmall`, `EncodingError`, and `IoError`.
+---
 
-## 6. Threads and Concurrency
+## 4. 行索引系统（关键差异）
 
-| C++ mechanism              | Rust mechanism                         | Status |
-| -------------------------- | -------------------------------------- | ------ |
-| U++ background scan thread | `rayon::spawn`                         | Done   |
-| Thread wait / join         | `Condvar` completion notification      | Done   |
-| Scan cancellation          | Cancellation flag + condition variable | Done   |
-| Shared scan data           | `Arc<[u8]>` / `Arc<Mmap>`              | Done   |
-| Atomic scan flag           | `AtomicBool`                           | Done   |
+### 架构对比
 
-## 7. Completed Validation Highlights
+| 层级     | C++ 架構              | Rust 实現                       | 状态 | 备注                                           |
+| -------- | --------------------- | ------------------------------- | ---- | ---------------------------------------------- |
+| 第一层   | 直接索引 (u32, ≤1M行) | `direct_offsets: Vec<u32>`      | ✅   | 完整实现                                       |
+| 第二层   | 扩展索引 (u64, >4GB)  | `extended_offsets: Vec<u64>`    | ✅   | 完整实现                                       |
+| 第三层   | 分块索引 (128KB/块)   | `chunks: Vec<ChunkIndex>`       | ✅   | 已填充状态，并已用于按行号与按位置查询范围裁剪 |
+| 分块限制 | 8,388,608 (8M)        | 8,388,608                       | ✅   | 已修正为 C++ 同量级                            |
+| 溢出处理 | `overstep` 字段       | `overstep_pos` 记录首个溢出位置 | ✅   | 已记录，并用于超过最后 chunk 后的查询范围裁剪  |
+| 缓存优化 | `lastline/lastpos`    | `cached_line`/`cached_pos`      | ✅   | 完整实现                                       |
 
-- CRLF and unterminated final-line handling
-- UTF-16LE/BE and UTF-32LE/BE original byte offsets
-- UTF-32 BOM detection and UTF-32 to UTF-8 conversion
-- Restart scanning from offset and encoding modes
-- Million-line index continuation and chunk/overstep search narrowing
-- `ReadFileDataLLineCut` line batching and 4 KB truncation
-- UTF-8 pointer advancement semantics
-- Load status diagnostics
-- Scan wait notification and cancellation
-- Shared scan buffers instead of full pre-scan cloning
-- Large file clone/save/append/concatenate I/O paths
-- C FFI smoke coverage
-- cbindgen-generated C/C++ header smoke compilation
-- C/C++ ABI link-and-run smoke validation
-- Bilingual C API usage documentation with a complete exported-interface reference
-- `GetFileMappedHuge` real mmap pointer semantics
-- Windowed mmap reading and background scanning
+### 查询函数对比
 
-## 8. Remaining Items
+| 函数           | C++ 实现       | Rust 实现           | 状态 | 备注                                                   |
+| -------------- | -------------- | ------------------- | ---- | ------------------------------------------------------ |
+| `GetLindexPos` | 完整三层查找   | `get_line_pos()`    | ✅   | 已使用 chunk/overstep 裁剪范围，并保留完整偏移精确读取 |
+| `GetLineByPos` | 完整三层二分   | `get_line_by_pos()` | ✅   | 已使用 chunk/overstep 裁剪二分范围                     |
+| 行长度计算     | 减 `\n`/`\r\n` | 扫描时记录内容长度  | ✅   | 已覆盖 CRLF、UTF-16LE/BE 与 UTF-32LE/BE 原始字节偏移   |
 
-| Priority | Item                                          | Impact                                                                   | Recommendation                                                        |
-| -------- | --------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| Medium   | Real huge-file benchmark validation           | Automated benchmark currently uses an approximately 12 MB temporary file | Run Criterion and/or external benchmarking on real very large files   |
-| Low      | clone/save/append/concat benchmark comparison | Performance has not yet been quantified against the C++ version          | Add I/O benchmark cases and compare with the reference implementation |
+### 关键问题
 
-## 9. V1 Observable-Behavior Alignment Matrix
+- **分块查询已接入 Rust 架构**：`chunks` 已在扫描时填充，`get_line_pos()` 与 `get_line_by_pos()` 均使用 chunk 与 `overstep_pos` 裁剪查询范围；Rust 保留完整偏移数组以避免从文件内容回扫造成额外 I/O
+- **性能结构差异**：Rust 直接索引与扩展索引保持百万行后的 O(1) 精确偏移读取，chunk/overstep 用于快速定位查询分区与溢出段
+- **已修复正确性缺口**：`CHUNK_COUNT_MAX`、CRLF 行长度、UTF-16LE/BE 与 UTF-32LE/BE 换行宽度、百万行后续偏移保存、chunk 填充、按行号/按位置查询范围裁剪与 overstep 溢出段范围裁剪均已补单元测试
 
-This table records only the public C ABI behaviors that are already locked down by regression tests and explicitly aligned with the C++ reference implementation. It is not a full API reference; it is the auditable v1.0 behavior baseline.
+---
 
-| Behavior                                         | C++ observable contract                                                                                         | Rust status | Evidence                                                                                                                                                                     |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LoadFileOnly` without scanning                  | `GetFileIsLoaded == 0`, `GetFileLineCount == 0`, line-index queries stay unavailable                            | Done        | `test_c_ffi_load_file_only_reports_scan_not_started`                                                                                                                         |
-| `GetFileLineIndex` before any line offsets exist | Returns `-1`, never line `0` by default                                                                         | Done        | `test_c_ffi_load_file_only_reports_scan_not_started`                                                                                                                         |
-| `GetFileLineIndex` past EOF                      | Returns `-1`, does not fall back to the last line                                                               | Done        | `test_c_ffi_line_index_rejects_positions_past_file_end`                                                                                                                      |
-| `ReadFileData` with negative position            | Clamps to the file start before reading                                                                         | Done        | `test_c_ffi_read_data_clamps_negative_positions_to_start`                                                                                                                    |
-| `ReadFileData` at EOF / past EOF                 | Returns an empty buffer and writes `len = 0` instead of failing                                                 | Done        | `test_c_ffi_read_data_clamps_positions_at_file_end`                                                                                                                          |
-| `ReadFileDataEndOfLine` at line end or file end  | Returns an empty buffer and writes `len = 0`                                                                    | Done        | `test_c_ffi_read_to_end_of_line_returns_empty_at_line_boundary`, `test_c_ffi_read_to_end_of_line_returns_empty_at_file_end`                                                  |
-| `ReadFileDataLLineCut` lookup failure            | Returns null, resets only `len`, preserves caller `index/bpos/epos`                                             | Done        | `test_c_ffi_line_cut_preserves_bounds_when_lookup_fails`                                                                                                                     |
-| `ReadFileDataLLineCut` with short budget         | `len` is a batching budget, not a hard cap; short budgets still return complete line boundaries                 | Done        | `test_c_ffi_line_cut_returns_complete_line_with_short_budget`                                                                                                                |
-| `GetFileMappedHuge` repeated-call lifetime       | A new call invalidates the previous pointer even when the new mapping fails                                     | Done        | `get_file_mapped_huge_retains_mmap_until_clear`, `get_file_mapped_huge_clears_previous_mapping_on_failure`                                                                   |
-| Empty file on scan path                          | Exposes one empty line at offset `0` with length `0`                                                            | Done        | `test_c_ffi_empty_file_matches_cpp_observable_line_state`                                                                                                                    |
-| Empty file on `LoadFileOnly` path                | Stays loaded-but-not-scanned; does not expose the synthetic empty line early                                    | Done        | `test_c_ffi_empty_file_load_only_keeps_scan_not_started`                                                                                                                     |
-| Queries while scanning is in progress            | `GetFileLinePos` may expose built prefixes; `GetFileLineIndex` and `GetFileLineLength` remain unavailable       | Done        | `get_file_line_pos_exposes_scanned_prefix_while_scanning`, `get_file_line_index_stays_unavailable_while_scanning`, `test_c_ffi_line_length_stays_unavailable_while_scanning` |
-| `GetFileSizeByteCount` for missing files         | Returns `-1`, matching the C++ `GetFileLength` failure contract                                                 | Done        | `test_c_ffi_get_file_size_missing_file_returns_reference_error`                                                                                                              |
-| File-write helpers with empty buffers            | A null buffer is accepted when `len == 0`; saving/appending empty content succeeds                              | Done        | `test_c_ffi_file_helpers_accept_null_empty_buffers`                                                                                                                          |
-| File helper severe failures                      | `ToCloneFile` / `ToSaveFile` / `ToAppendFile` / `ToConcatenateFile` return `-1` on failure                      | Done        | `test_c_ffi_file_helpers_use_reference_failure_codes`                                                                                                                        |
-| Encoding helpers with empty input                | Null pointers are accepted when `len == 0` and return success-style values                                      | Covered     | `test_c_ffi_text_and_file_helpers_handle_boundaries`                                                                                                                         |
-| `CheckExtractTextUtf8` slice boundaries          | Ignores UTF-8 characters that may be truncated at either slice boundary and validates the complete middle range | Done        | `test_c_ffi_text_and_file_helpers_handle_boundaries`                                                                                                                         |
-| `GetUtf8TextCharCount` invalid byte boundary     | Stops at the first invalid or incomplete UTF-8 byte and advances the input pointer to that byte                 | Covered     | `test_c_ffi_text_and_file_helpers_handle_boundaries`                                                                                                                         |
-| `RestartScanFile` provided path                  | Always reloads/scans the caller-provided `name` instead of reusing the already loaded file                      | Done        | `test_c_ffi_restart_scan_uses_provided_path`                                                                                                                                 |
-| `RestartScanFile` missing path                   | Stops and clears the old line index before rescan; missing paths do not keep exposing old index results         | Covered     | `test_c_ffi_restart_scan_missing_path_clears_previous_index`                                                                                                                 |
-| `RestartScanFile` negative offset                | Negative offsets do not keep exposing old index results; the old line index becomes unavailable                 | Done        | `test_c_ffi_restart_scan_negative_offset_clears_previous_index`                                                                                                              |
-| Loading missing files                            | `LoadAndScanFile` / `LoadFileOnly` return `-1` for paths that do not exist                                      | Done        | `test_c_ffi_load_missing_file_returns_reference_error`                                                                                                                       |
+## 5. 错误处理
 
-## 10. Conclusion
+| C++ 错误碼       | Rust 对应          | 状态                                                                              | 备注     |
+| ---------------- | ------------------ | --------------------------------------------------------------------------------- | -------- | ----------- |
+| `0` 成功         | ✅                 | ✅                                                                                | 完整实现 |
+| `-1` 文件不存在  | `FileNotLoaded`    | ✅                                                                                | 完整实现 |
+| `1` 文件不可访问 | `FileInaccessible` | ✅                                                                                | 完整实现 |
+| `2` 流错误       | `StreamError`      | ✅                                                                                | 完整实现 |
+| `3` 内存映射错误 | `MmapError`        | ✅                                                                                | 完整实现 |
+| 额外类型         | -                  | `InvalidOffset`, `InvalidLineIndex`, `BufferTooSmall`, `EncodingError`, `IoError` | ✨       | Rust 更丰富 |
 
-The Rust version covers the common file loading, scanning, line positioning, encoding detection, and reading scenarios from the C++ reference implementation. Recent work also aligned cbindgen-generated C/C++ ABI packaging, bilingual C API documentation with complete interface coverage, `GetFileMappedHuge` mmap pointer behavior, windowed mmap scanning, and large-file helper paths.
+---
 
-Future work should focus on release validation: real huge-file benchmarks and quantified I/O performance comparison against the C++ implementation.
+## 6. 线程与并发
+
+| C++ 机制                        | Rust 机制                          | 状态 | 备注                           |
+| ------------------------------- | ---------------------------------- | ---- | ------------------------------ |
+| U++ `Thread` 后台扫描           | `rayon::spawn`                     | ✅   | 完整实现                       |
+| `WaitFileScanTaskFinished` join | Condvar 完成通知                   | ✅   | 已替代 `sleep(10ms)` busy-loop |
+| `BackstageRequestStop` 停止扫描 | 取消标记 + Condvar                 | ✅   | 已支持主动取消并等待后台退出   |
+| 扫描数据引用（指针）            | `Arc<[u8]>` / `Arc<Mmap>` 共享引用 | ✅   | 已消除扫描前整块复制           |
+| `AtomicBool` 扫描标志           | `AtomicBool`                       | ✅   | 完整实现                       |
+
+---
+
+## 7. 优先级缺失清单
+
+### 已完成（2026-05-19）
+
+| 项目                                          | 状态 | 验证                                                                                                                                                                                    |
+| --------------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CRLF 行位置与行长度                           | ✅   | `test_crlf_line_positions_and_lengths`                                                                                                                                                  |
+| 未换行最后一行长度                            | ✅   | `test_unterminated_last_line_length`                                                                                                                                                    |
+| UTF-16LE 原始字节偏移                         | ✅   | `test_utf16le_line_positions_use_original_byte_offsets`                                                                                                                                 |
+| UTF-16BE 原始字节偏移                         | ✅   | `test_utf16be_crlf_positions_use_original_byte_offsets`                                                                                                                                 |
+| UTF-32LE 原始字节偏移                         | ✅   | `test_utf32le_lf_positions_use_original_byte_offsets`                                                                                                                                   |
+| UTF-32BE 原始字节偏移                         | ✅   | `test_utf32be_crlf_positions_use_original_byte_offsets`                                                                                                                                 |
+| UTF-32 BOM 检测                               | ✅   | `test_utf32_bom_detection`                                                                                                                                                              |
+| UTF-32 转 UTF-8                               | ✅   | `test_utf32_conversion_skips_bom`                                                                                                                                                       |
+| `RestartScanFile` 对应 API                    | ✅   | `test_restart_scan_from_offset`                                                                                                                                                         |
+| `RestartScanFile(Default)` 非零偏移 BOM 检测  | ✅   | `test_restart_scan_default_uses_file_bom_before_offset`                                                                                                                                 |
+| 百万行后续偏移保存                            | ✅   | `test_positions_after_direct_index_limit_are_preserved`                                                                                                                                 |
+| `ReadFileDataLLineCut` 短行批量读取/4KB 截断  | ✅   | `test_read_line_cut_batches_short_lines`、`test_read_line_defaults_to_long_line_cutoff`                                                                                                 |
+| `GetUtf8TextCharCount` 指针推进语义           | ✅   | `test_utf8_char_count_reports_consumed_bytes`                                                                                                                                           |
+| `GetFileIsLoaded` 详细状态                    | ✅   | `test_load_status_reports_unloaded_error_and_loaded`                                                                                                                                    |
+| `WaitFileScanTaskFinished` 完成通知等待       | ✅   | `test_scan_state_notifies_waiters_on_finish`                                                                                                                                            |
+| `BackstageRequestStop` 扫描中止与索引清理     | ✅   | `test_cancelled_build_leaves_empty_scanned_index`、`test_request_stop_scan_clears_index_after_background_scan`、`test_c_ffi_backstage_request_stop_clears_index`                        |
+| 后台扫描共享底层缓冲而非整块复制              | ✅   | `test_scan_buffer_reuses_small_file_storage`、`test_scan_buffer_reuses_mmap_storage`                                                                                                    |
+| 大文件 clone/save/append/concatenate I/O 路径 | ✅   | `test_append_file_creates_missing_target`、`test_save_file_large_buffer_round_trips`、`test_clone_file_large_input_round_trips`、`test_concatenate_files_large_input_appends_to_output` |
+| C FFI 核心句柄/加载/查询/读取闭环             | ✅   | `test_c_ffi_smoke_load_scan_query_and_read`                                                                                                                                             |
+| cbindgen 生成 C ABI 头文件与 smoke 编译       | ✅   | `cbindgen.toml`、`include/fjiffyldg.h`、`scripts/generate_c_header.ps1`、`tests/c_smoke.c`、`scripts/check_c_abi.ps1`                                                                   |
+| C/C++ ABI 链接运行 smoke                      | ✅   | `scripts/check_c_abi.ps1` 构建 release 动态库，链接并运行 `tests/c_smoke.c` 与 `tests/cpp_smoke.cpp`                                                                                    |
+| C++ 头文件 RAII 包装 smoke 编译与运行         | ✅   | `cbindgen.toml`、`include/fjiffyldg.h`、`tests/cpp_smoke.cpp`、`scripts/check_c_abi.ps1`                                                                                                |
+| C API 双语使用文档                            | ✅   | `docs/c_api_usage.md`、`docs/c_api_usage_en.md`，包含所有导出 C API 的逐接口参考                                                                                                        |
+| `GetFileMappedHuge` 真实 mmap 指针语义        | ✅   | `get_file_mapped_huge_retains_mmap_until_clear`                                                                                                                                         |
+| chunk 按位置查询范围裁剪                      | ✅   | `test_chunk_index_narrows_position_search_bounds`                                                                                                                                       |
+| chunk 按行号查询范围裁剪                      | ✅   | `test_chunk_index_narrows_line_search_bounds`                                                                                                                                           |
+| overstep 溢出段按位置查询范围裁剪             | ✅   | `test_overstep_position_narrows_search_after_last_chunk`                                                                                                                                |
+| overstep 溢出段按行号查询范围裁剪             | ✅   | `test_overstep_position_narrows_line_search_after_last_chunk`                                                                                                                           |
+| mmap 读取窗口动态重映射                       | ✅   | `test_read_data_remaps_window_for_far_mmap_offset`                                                                                                                                      |
+| mmap 后台扫描窗口化                           | ✅   | `test_scan_uses_all_mmap_windows`、`test_windowed_scan_supports_unaligned_restart_offset`、`test_windowed_scan_preserves_crlf_across_boundary`                                          |
+
+### 高优先级剩余项
+
+当前高优先级正确性缺口已补齐，剩余工作转为验证、基准与发布配套。
+
+### 中优先级剩余项
+
+| #   | 缺失项               | 影响                  | 建议                                                           |
+| --- | -------------------- | --------------------- | -------------------------------------------------------------- |
+| 4   | 真实超大文件基准验证 | 当前自动化基准约 12MB | 已提供 `large_file` Criterion 入口，后续在真实超大文件环境扩展 |
+
+### 低优先级剩余项
+
+| #   | 缺失项                               | 影响                 | 建议                        |
+| --- | ------------------------------------ | -------------------- | --------------------------- |
+| 8   | 大文件 clone/save/append/concat 基准 | 性能尚未量化贴近 C++ | 在 I/O benchmark 建立后优化 |
+
+## 8. V1 可观察行为对齐矩阵
+
+下表只记录已经通过回归测试固化、并明确对齐到 C++ 参考实现的公开 C ABI 可观察行为。它的目标不是重复完整 API 说明，而是为 v1.0 建立可审计的行为基线。
+
+| 行为点                                     | C++ 可观察语义                                                                        | Rust 当前状态 | 证据                                                                                                                                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LoadFileOnly` 非扫描状态                  | 已加载成功后 `GetFileIsLoaded == 0`，但 `GetFileLineCount == 0`，行索引查询不可用     | ✅ 已对齐     | `test_c_ffi_load_file_only_reports_scan_not_started`                                                                                                                         |
+| `GetFileLineIndex` 在无任何行偏移时        | 不返回第 0 行，返回 `-1`                                                              | ✅ 已对齐     | `test_c_ffi_load_file_only_reports_scan_not_started`                                                                                                                         |
+| `GetFileLineIndex` 查询超过文件末尾的位置  | 返回 `-1`，不回退到最后一行                                                           | ✅ 已对齐     | `test_c_ffi_line_index_rejects_positions_past_file_end`                                                                                                                      |
+| `ReadFileData` 负偏移                      | 先钳到文件起点再读取                                                                  | ✅ 已对齐     | `test_c_ffi_read_data_clamps_negative_positions_to_start`                                                                                                                    |
+| `ReadFileData` EOF / 越过 EOF              | 返回空缓冲区并将 `len` 写回 `0`，不是失败                                             | ✅ 已对齐     | `test_c_ffi_read_data_clamps_positions_at_file_end`                                                                                                                          |
+| `ReadFileDataEndOfLine` 行尾或文件末尾位置 | 返回空缓冲区并将 `len` 写回 `0`                                                       | ✅ 已对齐     | `test_c_ffi_read_to_end_of_line_returns_empty_at_line_boundary`、`test_c_ffi_read_to_end_of_line_returns_empty_at_file_end`                                                  |
+| `ReadFileDataLLineCut` 查找失败            | 返回空指针，仅将 `len` 置 `0`，保留原有 `index/bpos/epos`                             | ✅ 已对齐     | `test_c_ffi_line_cut_preserves_bounds_when_lookup_fails`                                                                                                                     |
+| `ReadFileDataLLineCut` 短预算读取          | `len` 是批量预算而不是硬上限；短预算仍按完整行边界返回                                | ✅ 已对齐     | `test_c_ffi_line_cut_returns_complete_line_with_short_budget`                                                                                                                |
+| `GetFileMappedHuge` 重复调用生命周期       | 新调用即使失败，也会使上一次返回的指针失效                                            | ✅ 已对齐     | `get_file_mapped_huge_retains_mmap_until_clear`、`get_file_mapped_huge_clears_previous_mapping_on_failure`                                                                   |
+| 空文件扫描路径                             | 视为 1 行，`line 0` 偏移为 `0`、长度为 `0`                                            | ✅ 已对齐     | `test_c_ffi_empty_file_matches_cpp_observable_line_state`                                                                                                                    |
+| 空文件 `LoadFileOnly` 路径                 | 保持“已加载但未开始扫描”，不提前暴露单空行状态                                        | ✅ 已对齐     | `test_c_ffi_empty_file_load_only_keeps_scan_not_started`                                                                                                                     |
+| 扫描进行中查询                             | `GetFileLinePos` 可见已扫描前缀；`GetFileLineIndex` 和 `GetFileLineLength` 仍不可用   | ✅ 已对齐     | `get_file_line_pos_exposes_scanned_prefix_while_scanning`、`get_file_line_index_stays_unavailable_while_scanning`、`test_c_ffi_line_length_stays_unavailable_while_scanning` |
+| `GetFileSizeByteCount` 缺失文件            | 返回 `-1`，对齐 C++ `GetFileLength` 失败语义                                          | ✅ 已对齐     | `test_c_ffi_get_file_size_missing_file_returns_reference_error`                                                                                                              |
+| 文件写入 helper 的空缓冲                   | `len == 0` 时允许空缓冲区，保存/追加空内容成功                                        | ✅ 已对齐     | `test_c_ffi_file_helpers_accept_null_empty_buffers`                                                                                                                          |
+| 文件 helper 的严重失败返回码               | `ToCloneFile` / `ToSaveFile` / `ToAppendFile` / `ToConcatenateFile` 失败统一返回 `-1` | ✅ 已对齐     | `test_c_ffi_file_helpers_use_reference_failure_codes`                                                                                                                        |
+| 编码 helper 空输入                         | `len == 0` 时允许空指针输入并返回成功语义                                             | ✅ 已覆盖     | `test_c_ffi_text_and_file_helpers_handle_boundaries`                                                                                                                         |
+| `CheckExtractTextUtf8` 抽取片段边界        | 忽略片段首尾可能被截断的 UTF-8 字符，只检查中间完整范围                               | ✅ 已对齐     | `test_c_ffi_text_and_file_helpers_handle_boundaries`                                                                                                                         |
+| `GetUtf8TextCharCount` 非法字节            | 遇到非法或不完整 UTF-8 时停止计数，并把输入指针推进到第一个未消费字节                 | ✅ 已覆盖     | `test_c_ffi_text_and_file_helpers_handle_boundaries`                                                                                                                         |
+| `RestartScanFile` 传入路径                 | 始终使用调用方传入的 `name` 重新加载/扫描，而不是复用已加载文件                       | ✅ 已对齐     | `test_c_ffi_restart_scan_uses_provided_path`                                                                                                                                 |
+| `RestartScanFile` 缺失路径                 | 重扫前先停止并清空旧行索引；缺失路径不会继续暴露旧索引结果                            | ✅ 已覆盖     | `test_c_ffi_restart_scan_missing_path_clears_previous_index`                                                                                                                 |
+| `RestartScanFile` 负偏移                   | 负偏移不会继续暴露旧索引结果；旧行索引回到不可查询状态                                | ✅ 已对齐     | `test_c_ffi_restart_scan_negative_offset_clears_previous_index`                                                                                                              |
+| 加载缺失文件                               | `LoadAndScanFile` / `LoadFileOnly` 对不存在文件返回 `-1`                              | ✅ 已对齐     | `test_c_ffi_load_missing_file_returns_reference_error`                                                                                                                       |
+
+## 9. 当前结论
+
+Rust 版本已覆盖常见文件加载、扫描、行定位、编码检测与读取场景。2026-05-20 的修复消除了几处会导致行为不一致或资源浪费的问题：CRLF、UTF-16LE/BE 与 UTF-32LE/BE 原始字节偏移、UTF-32 BOM、重扫 API、百万行后续偏移、chunk 填充与按行号/按位置查询范围裁剪、overstep 溢出段范围裁剪、mmap 读取与后台扫描窗口化、`ReadFileDataLLineCut` 对应读取语义、UTF-8 消费字节数、加载状态诊断、扫描完成通知等待、扫描中止、后台扫描前的整块数据复制，以及大文件 clone/save/append/concatenate 的慢路径。
+
+当前已补 Criterion 大文件基准入口，覆盖 mmap 加载扫描、随机行查询与随机读取；也已提供由 `cbindgen` 生成的 C/C++ ABI 头文件、链接运行 smoke 脚本、包含全接口参考的 C API 双语使用文档和 `GetFileMappedHuge` 真实 mmap 指针语义。后续开发应优先在真实超大文件环境扩展基准，并量化大文件 I/O 与 C++ 参考实现的性能差距。

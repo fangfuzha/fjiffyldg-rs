@@ -13,5 +13,5 @@ This is the entry point for the project's main documentation. Start here when yo
 - [Security Policy](SECURITY_EN.md)
 - [Changelog](CHANGELOG_EN.md)
 - [Development TODO](DEVELOPMENT_TODO_EN.md)
-- [Feature Coverage Depth Report](feature_coverage_depth_report.md)
+- [Feature Coverage Depth Report](feature_coverage_depth_report_en.md)
 - [C++ Architecture Design](architecture/cpp_design_en.md)

@@ -17,6 +17,10 @@ pub enum FjiffyldgError {
     #[error("File stream error")]
     StreamError,
 
+    /// 写入不完整（预期大小与实际大小不匹配）
+    #[error("Incomplete write: size mismatch")]
+    IncompleteWrite,
+
     /// 内存映射失败
     #[error("Memory-mapped file error")]
     MmapError,
@@ -62,6 +66,7 @@ impl FjiffyldgError {
             FjiffyldgError::FileInaccessible => 1,
             FjiffyldgError::StreamError => 2,
             FjiffyldgError::MmapError => 3,
+            FjiffyldgError::IncompleteWrite => 1,
             FjiffyldgError::InvalidOffset => 4,
             FjiffyldgError::InvalidLineIndex => 5,
             FjiffyldgError::BufferTooSmall => 6,
@@ -79,6 +84,8 @@ impl FjiffyldgError {
             1 => Some(FjiffyldgError::FileInaccessible),
             2 => Some(FjiffyldgError::StreamError),
             3 => Some(FjiffyldgError::MmapError),
+            // IncompleteWrite also maps to 1, but FileInaccessible
+            // is the canonical reverse mapping for load_status().
             4 => Some(FjiffyldgError::InvalidOffset),
             5 => Some(FjiffyldgError::InvalidLineIndex),
             6 => Some(FjiffyldgError::BufferTooSmall),

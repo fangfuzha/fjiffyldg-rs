@@ -395,10 +395,34 @@ mod tests {
 
         assert!(ffi::ReadFileData(handle, 0, ptr::null_mut()).is_null());
         assert!(ffi::ReadFileDataEndOfLine(handle, 0, 0, ptr::null_mut()).is_null());
-        assert!(ffi::ReadFileDataLLineCut(handle, ptr::null_mut(), &mut bpos, &mut epos, &mut len).is_null());
-        assert!(ffi::ReadFileDataLLineCut(handle, &mut index, ptr::null_mut(), &mut epos, &mut len).is_null());
-        assert!(ffi::ReadFileDataLLineCut(handle, &mut index, &mut bpos, ptr::null_mut(), &mut len).is_null());
-        assert!(ffi::ReadFileDataLLineCut(handle, &mut index, &mut bpos, &mut epos, ptr::null_mut()).is_null());
+        assert!(
+            ffi::ReadFileDataLLineCut(handle, ptr::null_mut(), &mut bpos, &mut epos, &mut len)
+                .is_null()
+        );
+        assert!(ffi::ReadFileDataLLineCut(
+            handle,
+            &mut index,
+            ptr::null_mut(),
+            &mut epos,
+            &mut len
+        )
+        .is_null());
+        assert!(ffi::ReadFileDataLLineCut(
+            handle,
+            &mut index,
+            &mut bpos,
+            ptr::null_mut(),
+            &mut len
+        )
+        .is_null());
+        assert!(ffi::ReadFileDataLLineCut(
+            handle,
+            &mut index,
+            &mut bpos,
+            &mut epos,
+            ptr::null_mut()
+        )
+        .is_null());
 
         let data = ffi::ReadFileData(handle, 0, &mut len);
         assert!(!data.is_null());
@@ -418,7 +442,10 @@ mod tests {
 
         let utf8_prefix = b"a\xe4\xbd\xa0\xfftail";
         let mut text = utf8_prefix.as_ptr().cast();
-        assert_eq!(ffi::GetUtf8TextCharCount(&mut text, utf8_prefix.len() as u32), 2);
+        assert_eq!(
+            ffi::GetUtf8TextCharCount(&mut text, utf8_prefix.len() as u32),
+            2
+        );
         assert_eq!(unsafe { text.offset_from(utf8_prefix.as_ptr().cast()) }, 4);
 
         let leading_continuation = b"\x80\x80abcdefghij";
@@ -479,7 +506,10 @@ mod tests {
         assert_eq!(ffi::ToCloneFile(missing_src.as_ptr(), dst.as_ptr()), -1);
         assert_eq!(ffi::ToSaveFile(target.as_ptr(), data.as_ptr(), -1), -1);
         assert_eq!(ffi::ToAppendFile(target.as_ptr(), data.as_ptr(), -1), -1);
-        assert_eq!(ffi::ToConcatenateFile(target.as_ptr(), append_src.as_ptr()), -1);
+        assert_eq!(
+            ffi::ToConcatenateFile(target.as_ptr(), append_src.as_ptr()),
+            -1
+        );
 
         let _ = std::fs::remove_file(target_path);
     }
@@ -835,12 +865,9 @@ mod tests {
         let _ = std::fs::remove_file(&missing_path);
         assert_eq!(
             fjiffyldg.load(&missing_path),
-            Err(FjiffyldgError::FileInaccessible)
+            Err(FjiffyldgError::FileNotLoaded)
         );
-        assert_eq!(
-            fjiffyldg.load_status(),
-            Err(FjiffyldgError::FileInaccessible)
-        );
+        assert_eq!(fjiffyldg.load_status(), Err(FjiffyldgError::FileNotLoaded));
 
         let mut temp = NamedTempFile::new().unwrap();
         temp.write_all(b"hello").unwrap();

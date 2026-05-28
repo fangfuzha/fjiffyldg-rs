@@ -364,6 +364,9 @@ impl LineIndex {
 
     /// 根据字节位置查找所在行索引
     pub fn get_line_by_pos(&self, pos: i64) -> i64 {
+        if !self.is_scanned() {
+            return -1;
+        }
         if pos < 0 {
             return -1;
         }
@@ -937,6 +940,8 @@ mod tests {
 
         assert_eq!(left, DIRECT_LINES_MAX + 1);
         assert_eq!(right, DIRECT_LINES_MAX + 3);
+        *index.total_lines.write() = (DIRECT_LINES_MAX + 3) as u64;
+        index.mark_scanned();
         assert_eq!(
             index.get_line_by_pos((1_000 + CHUNK_SIZE + 20) as i64),
             (DIRECT_LINES_MAX + 2) as i64

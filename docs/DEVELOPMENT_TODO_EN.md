@@ -92,7 +92,7 @@ This checklist is based on Rust API Guidelines, Cargo publishing metadata, docs.
 
 ### Task V.1: Make v1.0 Strictly Match C++ Observable Behavior
 
-**Files:** [功能覆盖深度检查报告.md](功能覆盖深度检查报告.md), [feature_coverage_depth_report.md](feature_coverage_depth_report.md), [tests/](../tests/), [include/fjiffyldg.h](../include/fjiffyldg.h), [src/ffi.rs](../src/ffi.rs)
+**Files:** [功能覆盖深度检查报告.md](feature_coverage_depth_report.md), [feature_coverage_depth_report.md](feature_coverage_depth_report_en.md), [tests/](../tests/), [include/fjiffyldg.h](../include/fjiffyldg.h), [src/ffi.rs](../src/ffi.rs)
 
 **Goal:** Establish the first stable release as a trustworthy Rust replacement for the C++ implementation.
 
@@ -129,7 +129,7 @@ This checklist is based on Rust API Guidelines, Cargo publishing metadata, docs.
 
 ## References
 
-- Coverage report: [功能覆盖深度检查报告.md](功能覆盖深度检查报告.md) / [feature_coverage_depth_report.md](feature_coverage_depth_report.md)
+- Coverage report: [功能覆盖深度检查报告.md](feature_coverage_depth_report.md) / [feature_coverage_depth_report.md](feature_coverage_depth_report_en.md)
 - C API usage guide: [c_api_usage.md](c_api_usage.md) / [c_api_usage_en.md](c_api_usage_en.md)
 - C++ reference implementation: [reference/fjiffyldg/Fjiffyldg/](../reference/fjiffyldg/Fjiffyldg/)
 - Rust source: [src/](../src/)
