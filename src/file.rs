@@ -177,10 +177,8 @@ pub struct FileModel {
 
     /// 小文件直接内存缓冲
     data: RwLock<Option<Arc<[u8]>>>,
-    /// 大文件内存映射
-    mmap: RwLock<Option<Arc<Mmap>>>,
-    /// 大文件分块映射状态
-    mmap_offset: RwLock<u64>,
+    /// 大文件内存映射（偏移 + mmap 合并到单锁，消除 TOCTOU 竞态）
+    mmap_window: RwLock<Option<(u64, Arc<Mmap>)>>,
     /// 大文件分块映射窗口大小
     mmap_chunk_size: RwLock<u64>,
 
@@ -208,8 +206,7 @@ impl FileModel {
         Self {
             line_index: Arc::new(LineIndex::new()),
             data: RwLock::new(None),
-            mmap: RwLock::new(None),
-            mmap_offset: RwLock::new(0),
+            mmap_window: RwLock::new(None),
             mmap_chunk_size: RwLock::new(MMAP_CHUNK_SIZE),
             file: RwLock::new(None),
             file_size: RwLock::new(0),
@@ -355,7 +352,7 @@ impl FileModel {
         self.request_stop_scan();
         // request_stop_scan 内部已调用 line_index.clear()，无需重复调用
         *self.data.write() = None;
-        *self.mmap.write() = None;
+        *self.mmap_window.write() = None;
         *self.file.write() = None;
         *self.file_size.write() = 0;
         *self.is_loaded.write() = false;
@@ -417,6 +414,9 @@ impl FileModel {
                     FjiffyldgError::StreamError
                 })?;
             f.read_to_end(&mut buffer).map_err(|_| {
+                // 回滚已提交的 file_size 和 file handle
+                *self.file_size.write() = 0;
+                *self.file.write() = None;
                 *self.error_code.write() = FjiffyldgError::StreamError.to_error_code();
                 FjiffyldgError::StreamError
             })?;
@@ -425,10 +425,12 @@ impl FileModel {
             let window_len = file_size.min(*self.mmap_chunk_size.read());
             match self.map_file_window(0, window_len) {
                 Ok(mmap) => {
-                    *self.mmap.write() = Some(Arc::new(mmap));
-                    *self.mmap_offset.write() = 0;
+                    *self.mmap_window.write() = Some((0, Arc::new(mmap)));
                 }
                 Err(err) => {
+                    // 回滚已提交的 file_size 和 file handle
+                    *self.file_size.write() = 0;
+                    *self.file.write() = None;
                     *self.error_code.write() = err.to_error_code();
                     return Err(err);
                 }
@@ -494,7 +496,7 @@ impl FileModel {
             return;
         }
 
-        let Some(first_mmap) = self.mmap.read().as_ref().map(Arc::clone) else {
+        let Some((_, first_mmap)) = self.mmap_window.read().as_ref().map(|(o, m)| (*o, Arc::clone(m))) else {
             self.line_index.mark_scanned();
             return;
         };
@@ -606,8 +608,18 @@ impl FileModel {
 
         self.request_stop_scan();
         self.line_index.clear();
-        self.set_utf_mode(utf_mode);
-        self.scan_lines_background_from(offset, Some(utf_mode), auto_detect);
+        // 解析 AutoDetect 为实际编码后再存储，使 get_utf_mode() 返回生效的编码
+        let resolved_mode = if utf_mode == UtfMode::AutoDetect || auto_detect {
+            let file_mode = self.data.read().as_ref()
+                .map(|d| Self::detect_utf_mode(d))
+                .or_else(|| self.mmap_window.read().as_ref().map(|(_, m)| Self::detect_utf_mode(m)))
+                .unwrap_or(UtfMode::Default);
+            Self::resolve_scan_utf_mode(Some(utf_mode), auto_detect, file_mode, self.get_utf_mode())
+        } else {
+            utf_mode
+        };
+        self.set_utf_mode(resolved_mode);
+        self.scan_lines_background_from(offset, Some(resolved_mode), false);
         *self.error_code.write() = 0;
         Ok(())
     }
@@ -635,7 +647,7 @@ impl FileModel {
             return Some(ScanBuffer::Owned(Arc::clone(data)));
         }
 
-        if let Some(mmap) = self.mmap.read().as_ref() {
+        if let Some((_, mmap)) = self.mmap_window.read().as_ref() {
             return Some(ScanBuffer::Mapped(Arc::clone(mmap)));
         }
 
@@ -662,12 +674,11 @@ impl FileModel {
     /// 返回 `(窗口偏移, Arc<Mmap>)` 元组，确保调用方获得一致的窗口视图。
     fn ensure_mmap_window(&self, pos: u64, len: u64) -> Result<(u64, Arc<Mmap>)> {
         {
-            let mmap_guard = self.mmap.read();
-            if let Some(mmap) = mmap_guard.as_ref() {
-                let offset = *self.mmap_offset.read();
+            let window = self.mmap_window.read();
+            if let Some((offset, mmap)) = window.as_ref() {
                 let mapped_end = offset + mmap.len() as u64;
-                if pos >= offset && pos.saturating_add(len) <= mapped_end {
-                    return Ok((offset, Arc::clone(mmap)));
+                if pos >= *offset && pos.saturating_add(len) <= mapped_end {
+                    return Ok((*offset, Arc::clone(mmap)));
                 }
             }
         }
@@ -683,8 +694,7 @@ impl FileModel {
         let window_len = window_end.saturating_sub(aligned_offset);
         let mmap = Arc::new(self.map_file_window(aligned_offset, window_len)?);
 
-        *self.mmap.write() = Some(Arc::clone(&mmap));
-        *self.mmap_offset.write() = aligned_offset;
+        *self.mmap_window.write() = Some((aligned_offset, Arc::clone(&mmap)));
         Ok((aligned_offset, mmap))
     }
 
@@ -758,20 +768,9 @@ impl FileModel {
 
         *bpos = begin;
 
-        // 计算行结束位置
-        let mut end_pos = *self.file_size.read() as i64;
-        if index + 1 < self.line_index.get_line_count() {
-            let np = self.line_index.get_line_pos((index + 1) as usize);
-            if np >= 0 {
-                end_pos = np;
-            }
-        }
-
-        let full_len = if end_pos > begin {
-            (end_pos - begin) as usize
-        } else {
-            0
-        };
+        // 使用行长度（不含行尾符）确定实际内容范围
+        let line_len = self.line_index.get_line_length(index as usize);
+        let full_len = if line_len > 0 { line_len as usize } else { 0 };
 
         let actual_len = if *len == 0 {
             full_len.min(CRITICAL_LONGLINE_LEN)
@@ -837,12 +836,11 @@ impl FileModel {
 
         if next_pos < 0 || next_pos - cur_pos > CRITICAL_LONGLINE_LEN as i64 {
             next_pos = cur_pos + CRITICAL_LONGLINE_LEN as i64;
-            // 长行截断后推进 index，避免下次调用读到相同位置导致无限循环
+            // 长行截断后推进 index，避免下次调用读到相同位置导致无限循环。
+            // 无条件推进：即使当前行是末行（无后续行），index 也会超出总行数，
+            // 下次调用 get_line_pos 返回 -1，调用方得到 None 终止迭代。
             if cur_pos == begin {
-                let after = self.line_index.get_line_pos((*index + 1) as usize);
-                if after > 0 {
-                    *index += 1;
-                }
+                *index += 1;
             }
         }
 
@@ -913,6 +911,11 @@ impl FileModel {
         let path = path.as_ref();
         let file = File::open(path).map_err(|_| FjiffyldgError::FileInaccessible)?;
 
+        // 拒绝目录路径
+        if !file.metadata().map(|m| m.is_file()).unwrap_or(false) {
+            return Err(FjiffyldgError::FileInaccessible);
+        }
+
         match unsafe { Mmap::map(&file) } {
             Ok(mmap) => Ok(mmap.to_vec()),
             Err(_) => Err(FjiffyldgError::MmapError),
@@ -923,7 +926,7 @@ impl FileModel {
     pub fn clear(&self) {
         self.request_stop_scan();
         *self.data.write() = None;
-        *self.mmap.write() = None;
+        *self.mmap_window.write() = None;
         *self.file.write() = None;
         self.line_index.clear();
         *self.file_size.write() = 0;
@@ -994,7 +997,7 @@ mod tests {
         let model = FileModel::new();
         model.load_file_only(temp.path()).unwrap();
 
-        let expected_ptr = model.mmap.read().as_ref().unwrap().as_ptr();
+        let expected_ptr = model.mmap_window.read().as_ref().unwrap().1.as_ptr();
         let scan_buffer = model.get_scan_buffer().unwrap();
         let slice = scan_buffer.slice_from(3);
 
@@ -1016,9 +1019,9 @@ mod tests {
             .load_file_with_mmap_chunk_size(temp.path(), false, window_size)
             .unwrap();
 
-        assert_eq!(*model.mmap_offset.read(), 0);
+        assert_eq!(model.mmap_window.read().as_ref().unwrap().0, 0);
         assert_eq!(model.read_data(target_pos as i64, 5).unwrap(), b"hello");
-        assert_eq!(*model.mmap_offset.read(), window_size);
+        assert_eq!(model.mmap_window.read().as_ref().unwrap().0, window_size);
     }
 
     #[test]
@@ -1138,9 +1141,11 @@ mod tests {
 
 /// 获取文件大小（字节）
 pub fn get_file_size<P: AsRef<Path>>(path: P) -> Result<u64> {
-    std::fs::metadata(path)
-        .map(|m| m.len())
-        .map_err(|_| FjiffyldgError::FileInaccessible)
+    let meta = std::fs::metadata(path).map_err(|_| FjiffyldgError::FileInaccessible)?;
+    if !meta.is_file() {
+        return Err(FjiffyldgError::FileInaccessible);
+    }
+    Ok(meta.len())
 }
 
 /// 写后校验：验证文件实际大小与预期一致。

@@ -73,8 +73,9 @@ pub mod file;
 pub mod line_index;
 
 pub use encoding::{
-    check_extract_text_utf8, check_text_ascii, check_whole_text_utf8, detect_encoding,
-    get_utf8_char_count, get_utf8_char_count_with_offset, TextEncoding,
+    check_extract_text_utf8, check_text_ascii, check_utf8_char, check_whole_text_utf8,
+    convert_to_utf8, detect_encoding, get_utf8_char_count, get_utf8_char_count_with_offset,
+    is_ascii_char, TextEncoding,
 };
 pub use error::{FjiffyldgError, Result, UtfMode};
 pub use file::{append_file, clone_file, concatenate_files, get_file_size, save_file, FileModel};

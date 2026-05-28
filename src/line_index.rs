@@ -371,7 +371,12 @@ impl LineIndex {
             return -1;
         };
 
-        *self.cached.write() = (index as u64, pos);
+        // 写入前 double-check：防止其他线程在读锁释放后已写入相同条目
+        let mut cached = self.cached.write();
+        if cached.0 == index as u64 {
+            return cached.1 as i64;
+        }
+        *cached = (index as u64, pos);
         pos as i64
     }
 
@@ -530,11 +535,13 @@ impl LineIndex {
             if pos <= u32::MAX as u64 {
                 dir_offs.push(pos as u32);
             } else {
+                // 偏移超过 u32 范围，存入扩展索引
                 drop(dir_offs);
                 let mut ext_offs = self.extended_offsets.write();
                 ext_offs.push(pos);
             }
         } else {
+            // 使用两个数组的总长度作为行索引
             let line_index = dir_offs.len() as u64 + self.extended_offsets.read().len() as u64;
             drop(dir_offs);
             let mut ext_offs = self.extended_offsets.write();

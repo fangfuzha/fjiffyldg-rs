@@ -138,13 +138,28 @@ pub fn check_utf8_char(text: &[u8], width: usize) -> bool {
     }
 
     // 检查续接字节模式
-    if !text.iter().take(width).skip(1).all(|byte| is_valid_utf8_continuation(*byte)) {
+    if !text
+        .iter()
+        .take(width)
+        .skip(1)
+        .all(|byte| is_valid_utf8_continuation(*byte))
+    {
         return false;
     }
 
     // 拒绝超长编码（overlong encoding）
     // 2 字节序列的有效范围：U+0080..U+07FF（首字节 C2..DF）
     if width == 2 && text[0] < 0xC2 {
+        return false;
+    }
+
+    // 3 字节 overlong：E0 80..9F 编码 U+0000..U+07FF（应用 1-2 字节）
+    if width == 3 && text[0] == 0xE0 && text[1] < 0xA0 {
+        return false;
+    }
+
+    // 4 字节 overlong：F0 80..8F 编码 U+0000..U+0FFF（应用 1-3 字节）
+    if width == 4 && text[0] == 0xF0 && text[1] < 0x90 {
         return false;
     }
 
@@ -245,10 +260,8 @@ pub fn check_extract_text_utf8(text: &[u8]) -> usize {
     }
 
     let text = &text[start_offset..];
-    let Some(first_width) = text.first().and_then(|byte| get_utf8_char_width(*byte)) else {
-        return 0;
-    };
-    if first_width == 0 {
+    // 确认首字节是有效的 UTF-8 起始字节
+    if !text.first().map_or(false, |b| get_utf8_char_width(*b).is_some()) {
         return 0;
     }
 
@@ -265,14 +278,20 @@ pub fn check_extract_text_utf8(text: &[u8]) -> usize {
     }
 
     let tail_start = text.len() - trailing_slice;
-    if get_utf8_char_width(text[tail_start]).unwrap_or(0) < trailing_slice {
+    let tail_width = get_utf8_char_width(text[tail_start]).unwrap_or(0);
+    if tail_width > trailing_slice {
+        // 末尾字符不完整（需要更多续接字节），截断到该字符之前
+        return check_whole_text_utf8(&text[..tail_start]);
+    }
+    if tail_width < trailing_slice {
+        // 续接字节数超过字符宽度，说明尾部结构异常
         return check_whole_text_utf8(text);
     }
 
     let check_len = text.len() - trailing_slice;
     let remaining = check_whole_text_utf8(&text[..check_len]);
     if remaining != 0 {
-        remaining + trailing_slice
+        start_offset + remaining + trailing_slice
     } else {
         0
     }
