@@ -316,7 +316,7 @@ impl FileModel {
             return -1;
         }
 
-        if pos > *self.file_size.read() as i64 {
+        if pos < 0 || pos > *self.file_size.read() as i64 {
             return -1;
         }
 
@@ -779,6 +779,10 @@ impl FileModel {
         epos: &mut i64,
         len: &mut usize,
     ) -> Option<Vec<u8>> {
+        if index < 0 {
+            *len = 0;
+            return None;
+        }
         let begin = self.line_index.get_line_pos(index as usize);
         if begin < 0 {
             *len = 0;
