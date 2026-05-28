@@ -281,7 +281,9 @@ pub fn check_extract_text_utf8(text: &[u8]) -> usize {
     let tail_width = get_utf8_char_width(text[tail_start]).unwrap_or(0);
     if tail_width > trailing_slice {
         // 末尾字符不完整（需要更多续接字节），截断到该字符之前
-        return check_whole_text_utf8(&text[..tail_start]);
+        // 错误位置 = 截断点到 text 末尾的距离 + 被截掉的尾部长度
+        let remaining = check_whole_text_utf8(&text[..tail_start]);
+        return if remaining != 0 { remaining + trailing_slice } else { 0 };
     }
     if tail_width < trailing_slice {
         // 续接字节数超过字符宽度，说明尾部结构异常
@@ -291,7 +293,7 @@ pub fn check_extract_text_utf8(text: &[u8]) -> usize {
     let check_len = text.len() - trailing_slice;
     let remaining = check_whole_text_utf8(&text[..check_len]);
     if remaining != 0 {
-        start_offset + remaining + trailing_slice
+        remaining + trailing_slice
     } else {
         0
     }

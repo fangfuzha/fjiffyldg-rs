@@ -516,14 +516,15 @@ impl LineIndex {
 
     /// 清空索引
     pub fn clear(&self) {
+        // 缓存重置放在最前面，避免并发读者命中已失效的缓存条目
+        *self.cached.write() = (u64::MAX, 0);
+        self.is_scanned.store(false, Ordering::Release);
         self.direct_offsets.write().clear();
         self.extended_offsets.write().clear();
         self.line_lengths.write().clear();
         self.chunks.write().clear();
         *self.total_lines.write() = 0;
         *self.overstep_pos.write() = 0;
-        *self.cached.write() = (u64::MAX, 0);
-        self.is_scanned.store(false, Ordering::Release);
     }
 
     /// 添加一行的起始位置

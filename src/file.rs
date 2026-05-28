@@ -410,6 +410,9 @@ impl FileModel {
                 .as_ref()
                 .and_then(|f| f.try_clone().ok())
                 .ok_or_else(|| {
+                    // 回滚已提交的 file_size 和 file handle
+                    *self.file_size.write() = 0;
+                    *self.file.write() = None;
                     *self.error_code.write() = FjiffyldgError::StreamError.to_error_code();
                     FjiffyldgError::StreamError
                 })?;
@@ -496,7 +499,12 @@ impl FileModel {
             return;
         }
 
-        let Some((_, first_mmap)) = self.mmap_window.read().as_ref().map(|(o, m)| (*o, Arc::clone(m))) else {
+        let Some((_, first_mmap)) = self
+            .mmap_window
+            .read()
+            .as_ref()
+            .map(|(o, m)| (*o, Arc::clone(m)))
+        else {
             self.line_index.mark_scanned();
             return;
         };
@@ -595,6 +603,7 @@ impl FileModel {
         utf_mode: UtfMode,
         auto_detect: bool,
     ) -> Result<()> {
+        let _guard = self.load_mutex.lock();
         if !self.is_loaded() {
             *self.error_code.write() = FjiffyldgError::FileNotLoaded.to_error_code();
             return Err(FjiffyldgError::FileNotLoaded);
@@ -610,9 +619,17 @@ impl FileModel {
         self.line_index.clear();
         // 解析 AutoDetect 为实际编码后再存储，使 get_utf_mode() 返回生效的编码
         let resolved_mode = if utf_mode == UtfMode::AutoDetect || auto_detect {
-            let file_mode = self.data.read().as_ref()
+            let file_mode = self
+                .data
+                .read()
+                .as_ref()
                 .map(|d| Self::detect_utf_mode(d))
-                .or_else(|| self.mmap_window.read().as_ref().map(|(_, m)| Self::detect_utf_mode(m)))
+                .or_else(|| {
+                    self.mmap_window
+                        .read()
+                        .as_ref()
+                        .map(|(_, m)| Self::detect_utf_mode(m))
+                })
                 .unwrap_or(UtfMode::Default);
             Self::resolve_scan_utf_mode(Some(utf_mode), auto_detect, file_mode, self.get_utf_mode())
         } else {
@@ -770,7 +787,12 @@ impl FileModel {
 
         // 使用行长度（不含行尾符）确定实际内容范围
         let line_len = self.line_index.get_line_length(index as usize);
-        let full_len = if line_len > 0 { line_len as usize } else { 0 };
+        if line_len < 0 {
+            // get_line_length 失败（未扫描/越界），与 get_line_pos 返回 -1 同等处理
+            *len = 0;
+            return None;
+        }
+        let full_len = line_len as usize;
 
         let actual_len = if *len == 0 {
             full_len.min(CRITICAL_LONGLINE_LEN)
@@ -836,12 +858,10 @@ impl FileModel {
 
         if next_pos < 0 || next_pos - cur_pos > CRITICAL_LONGLINE_LEN as i64 {
             next_pos = cur_pos + CRITICAL_LONGLINE_LEN as i64;
-            // 长行截断后推进 index，避免下次调用读到相同位置导致无限循环。
-            // 无条件推进：即使当前行是末行（无后续行），index 也会超出总行数，
-            // 下次调用 get_line_pos 返回 -1，调用方得到 None 终止迭代。
-            if cur_pos == begin {
-                *index += 1;
-            }
+            // 无条件推进 index：长行截断后跳过该行，避免下次调用重复读取。
+            // 无论长行是首行、中间行还是末行，index 都推进到下一行。
+            // 若是末行，index 超出总行数，下次 get_line_pos 返回 -1 终止迭代。
+            *index += 1;
         }
 
         let actual_len = if next_pos > begin {
@@ -924,6 +944,7 @@ impl FileModel {
 
     /// 清空所有数据
     pub fn clear(&self) {
+        let _guard = self.load_mutex.lock();
         self.request_stop_scan();
         *self.data.write() = None;
         *self.mmap_window.write() = None;
