@@ -1,3 +1,18 @@
+//! 文件行索引管理。
+//!
+//! 本模块实现分级行索引结构，支持高效的大文件行级随机访问。
+//!
+//! # 三层索引架构
+//!
+//! | 层级 | 数据结构 | 容量 | 用途 |
+//! |------|----------|------|------|
+//! | 第一层 | `direct_offsets: Vec<u32>` | 前 100 万行 | O(1) 精确偏移读取 |
+//! | 第二层 | `extended_offsets: Vec<u64>` | >4GB 文件 | 超大偏移支持 |
+//! | 第三层 | `chunks: Vec<ChunkIndex>` | 8M × 128KB = 1TB | 范围裁剪加速查询 |
+//!
+//! 查询时先通过 chunk 索引裁剪二分范围，再在 direct/extended 数组中精确定位。
+//! 超过 chunk 限制的行由 `overstep_pos` 记录首个溢出位置。
+
 use crate::error::UtfMode;
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};

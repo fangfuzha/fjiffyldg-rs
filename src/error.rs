@@ -1,3 +1,36 @@
+//! 错误类型与 UTF 编码模式定义。
+//!
+//! 本模块定义了 Fjiffyldg 库的所有错误类型（[`FjiffyldgError`]）和 UTF 编码模式（[`UtfMode`]）。
+//!
+//! # 错误码对照表
+//!
+//! | 错误码 | 错误类型 | 含义 |
+//! |--------|----------|------|
+//! | `0` | — | 成功 |
+//! | `-1` | [`FjiffyldgError::FileNotLoaded`] | 文件不存在或未加载 |
+//! | `1` | [`FjiffyldgError::FileInaccessible`] / [`FjiffyldgError::IncompleteWrite`] | 文件不可访问 / 写入不完整 |
+//! | `2` | [`FjiffyldgError::StreamError`] | 流读取错误 |
+//! | `3` | [`FjiffyldgError::MmapError`] | 内存映射失败 |
+//! | `4` | [`FjiffyldgError::InvalidOffset`] | 无效文件偏移 |
+//! | `5` | [`FjiffyldgError::InvalidLineIndex`] | 无效行索引 |
+//! | `6` | [`FjiffyldgError::BufferTooSmall`] | 缓冲区太小 |
+//! | `7` | [`FjiffyldgError::EncodingError`] | 编码错误 |
+//! | `-2` | [`FjiffyldgError::IoError`] | 通用 IO 错误 |
+//!
+//! # 示例
+//!
+//! ```
+//! use fjiffyldg::{FjiffyldgError, UtfMode};
+//!
+//! // 错误码转换
+//! assert_eq!(FjiffyldgError::FileNotLoaded.to_error_code(), -1);
+//! assert_eq!(FjiffyldgError::from_error_code(2), Some(FjiffyldgError::StreamError));
+//!
+//! // UTF 模式
+//! let mode = UtfMode::Utf16Le;
+//! assert_eq!(mode as i32, 1);
+//! ```
+
 use thiserror::Error;
 
 /// 错误类型定义

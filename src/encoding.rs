@@ -1,4 +1,32 @@
 //! 文本编码检测、校验与 UTF-8 转换工具。
+//!
+//! 本模块提供独立的编码检测与文本校验函数，无需文件句柄即可使用。
+//!
+//! # 功能概览
+//!
+//! | 函数 | 用途 |
+//! |------|------|
+//! | [`detect_encoding`] | 根据 BOM 头检测文本编码 |
+//! | [`check_text_ascii`] | SIMD 加速的 ASCII 检查 |
+//! | [`check_whole_text_utf8`] | 完整 UTF-8 有效性校验 |
+//! | [`check_extract_text_utf8`] | 抽取式 UTF-8 检查（适合流式片段） |
+//! | [`get_utf8_char_count`] | 统计有效 UTF-8 字符数 |
+//! | [`get_utf8_char_count_with_offset`] | 字符数 + 已消费字节数 |
+//!
+//! # 示例
+//!
+//! ```
+//! use fjiffyldg::{detect_encoding, check_text_ascii, get_utf8_char_count, TextEncoding};
+//!
+//! // BOM 检测
+//! assert_eq!(detect_encoding(b"\xFF\xFE\x00\x00"), TextEncoding::Utf32Le);
+//!
+//! // ASCII 检查（0 = 全部 ASCII）
+//! assert_eq!(check_text_ascii(b"hello"), 0);
+//!
+//! // UTF-8 字符计数
+//! assert_eq!(get_utf8_char_count("你好".as_bytes()), 2);
+//! ```
 
 use encoding_rs::{UTF_16BE, UTF_16LE};
 

@@ -10,7 +10,7 @@
 //! - **编码自动检测**：支持ASCII、UTF-8、UTF-16、UTF-32
 //! - **性能优化**：SIMD加速的ASCII检查，与C++版本性能相当或更优
 //!
-//! ## 使用示例
+//! ## 快速开始
 //!
 //! ```no_run
 //! use fjiffyldg::Fjiffyldg;
@@ -20,24 +20,51 @@
 //!
 //! // 加载并扫描文件
 //! fjiffyldg.load_and_scan("large_file.txt")?;
+//! fjiffyldg.wait_scan();
 //!
 //! // 获取文件基本信息
-//! println!("Total lines: {}", fjiffyldg.line_count());
-//! println!("File size: {} bytes", fjiffyldg.file_size());
+//! println!("总行数: {}", fjiffyldg.line_count());
+//! println!("文件大小: {} 字节", fjiffyldg.file_size());
 //!
 //! // 随机访问指定行
 //! let pos = fjiffyldg.line_pos(100);
 //! let len = fjiffyldg.line_length(100);
 //! if let Some(data) = fjiffyldg.read(pos, len as usize) {
-//!     println!("Line 100: {:?}", String::from_utf8_lossy(&data));
+//!     println!("行 100: {:?}", String::from_utf8_lossy(&data));
 //! }
-//!
-//! // 检查编码
-//! let encoding = fjiffyldg::detect_encoding(b"hello world");
-//! println!("Encoding: {:?}", encoding);
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! ## 示例程序
+//!
+//! 仓库 `examples/` 目录提供完整示例，覆盖所有公开 API：
+//!
+//! | 示例文件 | 涵盖内容 |
+//! |----------|----------|
+//! | [`basic_usage`](https://github.com/fangfuzha/fjiffyldg-rs/blob/main/examples/basic_usage.rs) | 基础用法：加载、查询、读取、编码检测 |
+//! | [`scan_and_query`](https://github.com/fangfuzha/fjiffyldg-rs/blob/main/examples/scan_and_query.rs) | 异步扫描、行查询、批量读取、取消扫描、重新扫描 |
+//! | [`file_operations`](https://github.com/fangfuzha/fjiffyldg-rs/blob/main/examples/file_operations.rs) | 文件操作：克隆、保存、追加、合并 |
+//! | [`encoding_detection`](https://github.com/fangfuzha/fjiffyldg-rs/blob/main/examples/encoding_detection.rs) | 编码检测、UTF 校验、字符计数、UTF 模式 |
+//!
+//! 运行示例：
+//!
+//! ```bash
+//! cargo run --example basic_usage
+//! cargo run --example scan_and_query
+//! cargo run --example file_operations
+//! cargo run --example encoding_detection
+//! ```
+//!
+//! ## 模块结构
+//!
+//! | 模块 | 用途 |
+//! |------|------|
+//! | [`encoding`] | 编码检测、UTF-8 校验、字符计数 |
+//! | [`error`] | 错误类型与 UTF 编码模式 |
+//! | [`ffi`] | C ABI 绑定 |
+//! | [`file`] | 文件模型与文件操作 |
+//! | [`line_index`] | 分级行索引 |
 
 pub mod encoding;
 pub mod error;

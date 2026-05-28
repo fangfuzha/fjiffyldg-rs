@@ -1,5 +1,39 @@
 #![allow(clippy::items_after_test_module)]
 
+//! 文件模型与文件操作。
+//!
+//! 本模块包含两个主要部分：
+//!
+//! # 1. [`FileModel`] — 核心文件处理模型
+//!
+//! 提供文件加载、内存映射、行扫描和数据读取的底层实现。
+//! 通常通过高层 [`Fjiffyldg`](crate::Fjiffyldg) 接口使用，而非直接操作。
+//!
+//! # 2. 独立文件操作函数
+//!
+//! | 函数 | 用途 | 大文件优化 |
+//! |------|------|-----------|
+//! | [`clone_file`] | 克隆文件 | >10MB 走 mmap |
+//! | [`save_file`] | 保存数据 | >10MB 走可写 mmap |
+//! | [`append_file`] | 追加数据 | >10MB 走缓冲写入 |
+//! | [`concatenate_files`] | 合并多个文件 | >10MB 走 mmap |
+//! | [`get_file_size`] | 获取文件大小 | — |
+//!
+//! 所有写入操作均包含写后大小校验，不匹配时返回 [`IncompleteWrite`](crate::FjiffyldgError::IncompleteWrite)。
+//!
+//! # 示例
+//!
+//! ```no_run
+//! use fjiffyldg::{save_file, append_file, clone_file, get_file_size};
+//!
+//! save_file("/tmp/demo.txt", b"Hello")?;
+//! append_file("/tmp/demo.txt", b" World")?;
+//! assert_eq!(get_file_size("/tmp/demo.txt")?, 11);
+//!
+//! clone_file("/tmp/demo.txt", "/tmp/demo_copy.txt")?;
+//! # fjiffyldg::Result::Ok(())
+//! ```
+
 use crate::encoding::{detect_encoding, TextEncoding};
 use crate::error::{FjiffyldgError, Result, UtfMode};
 use crate::line_index::LineIndex;
