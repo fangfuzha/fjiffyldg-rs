@@ -616,7 +616,7 @@ impl FileModel {
         }
 
         self.request_stop_scan();
-        self.line_index.clear();
+        // request_stop_scan 内部已调用 line_index.clear()，无需重复调用
         // 解析 AutoDetect 为实际编码后再存储，使 get_utf_mode() 返回生效的编码
         let resolved_mode = if utf_mode == UtfMode::AutoDetect || auto_detect {
             let file_mode = self
@@ -946,10 +946,10 @@ impl FileModel {
     pub fn clear(&self) {
         let _guard = self.load_mutex.lock();
         self.request_stop_scan();
+        // request_stop_scan 内部已调用 line_index.clear() + mark_scanned()，无需重复调用
         *self.data.write() = None;
         *self.mmap_window.write() = None;
         *self.file.write() = None;
-        self.line_index.clear();
         *self.file_size.write() = 0;
         *self.error_code.write() = 0;
         *self.is_loaded.write() = false;

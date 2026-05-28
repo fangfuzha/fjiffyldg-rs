@@ -2,7 +2,7 @@
 name = "fjiffyldg"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.80"
 authors = ["fangfuzha"]
 description = "High-performance cross-platform file processing library"
 license = "BSD-3-Clause OR MIT OR Apache-2.0"

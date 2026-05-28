@@ -8,13 +8,14 @@
 //! |--------|----------|------|
 //! | `0` | — | 成功 |
 //! | `-1` | [`FjiffyldgError::FileNotLoaded`] | 文件不存在或未加载 |
-//! | `1` | [`FjiffyldgError::FileInaccessible`] / [`FjiffyldgError::IncompleteWrite`] | 文件不可访问 / 写入不完整 |
+//! | `1` | [`FjiffyldgError::FileInaccessible`] | 文件不可访问 |
 //! | `2` | [`FjiffyldgError::StreamError`] | 流读取错误 |
 //! | `3` | [`FjiffyldgError::MmapError`] | 内存映射失败 |
 //! | `4` | [`FjiffyldgError::InvalidOffset`] | 无效文件偏移 |
 //! | `5` | [`FjiffyldgError::InvalidLineIndex`] | 无效行索引 |
 //! | `6` | [`FjiffyldgError::BufferTooSmall`] | 缓冲区太小 |
 //! | `7` | [`FjiffyldgError::EncodingError`] | 编码错误 |
+//! | `8` | [`FjiffyldgError::IncompleteWrite`] | 写入不完整 |
 //! | `-2` | [`FjiffyldgError::IoError`] | 通用 IO 错误 |
 //!
 //! # 示例
@@ -122,6 +123,7 @@ impl FjiffyldgError {
             5 => Some(FjiffyldgError::InvalidLineIndex),
             6 => Some(FjiffyldgError::BufferTooSmall),
             7 => Some(FjiffyldgError::EncodingError),
+            8 => Some(FjiffyldgError::IncompleteWrite),
             -2 => Some(FjiffyldgError::IoError),
             _ => None,
         }

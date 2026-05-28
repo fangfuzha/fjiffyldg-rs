@@ -26,6 +26,16 @@
 #define FJIFFYLDG_API
 #endif
 
+/** UTF encoding mode for RestartScanFile. */
+enum FjiffyldgUtfMode {
+    FJIFFYLDG_UTF_DEFAULT    =  0,
+    FJIFFYLDG_UTF16_LE       =  1,
+    FJIFFYLDG_UTF16_BE       =  2,
+    FJIFFYLDG_UTF32_LE       =  3,
+    FJIFFYLDG_UTF32_BE       =  4,
+    FJIFFYLDG_UTF_AUTO       = -1
+};
+
 
 /**
  * C ABI 使用的不透明文件处理句柄。

@@ -87,7 +87,8 @@ pub fn check_text_ascii(text: &[u8]) -> usize {
         ]);
 
         if (chunk & 0x8080808080808080) != 0 {
-            for i in pos..text.len() {
+            // 掩码已确认非 ASCII 字节在当前 8 字节块内，只扫描块内字节
+            for i in pos..(pos + 8).min(text.len()) {
                 if (text[i] & 0x80) != 0 {
                     return text.len() - i;
                 }
@@ -164,8 +165,8 @@ pub fn check_utf8_char(text: &[u8], width: usize) -> bool {
     }
 
     // 拒绝 UTF-16 代理对半区（U+D800..U+DFFF）
-    // 3 字节序列首字节 ED，第二字节 A0..BF
-    if width == 3 && text[0] == 0xED && (text[1] & 0xA0) == 0xA0 {
+    // 3 字节序列首字节 ED，第二字节 A0..BF（即高半区 0xA0..=0xBF）
+    if width == 3 && text[0] == 0xED && (text[1] & 0xF0) == 0xA0 {
         return false;
     }
 
@@ -376,10 +377,22 @@ pub fn detect_encoding(data: &[u8]) -> TextEncoding {
 pub fn convert_to_utf8(data: &[u8], encoding: &TextEncoding) -> std::result::Result<Vec<u8>, ()> {
     match encoding {
         TextEncoding::Utf16Le => {
+            // 剥离 UTF-16LE BOM (FF FE) 后再解码，与 UTF-32 路径行为一致
+            let data = if data.len() >= 2 && data[0] == 0xFF && data[1] == 0xFE {
+                &data[2..]
+            } else {
+                data
+            };
             let (decoded, _, _) = UTF_16LE.decode(data);
             Ok(decoded.into_owned().into_bytes())
         }
         TextEncoding::Utf16Be => {
+            // 剥离 UTF-16BE BOM (FE FF) 后再解码
+            let data = if data.len() >= 2 && data[0] == 0xFE && data[1] == 0xFF {
+                &data[2..]
+            } else {
+                data
+            };
             let (decoded, _, _) = UTF_16BE.decode(data);
             Ok(decoded.into_owned().into_bytes())
         }
