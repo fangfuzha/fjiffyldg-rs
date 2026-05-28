@@ -9,7 +9,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdint.h>
 #ifdef FJIFFYLDG_SHARED
 #if defined(_WIN32) || defined(__CYGWIN__)
 #if defined(BUILDING_FJIFFYLDG)

@@ -108,7 +108,7 @@ where
 /// 将 C 字符串转换为 Rust 路径。
 fn path_from_c(name: *const c_char) -> crate::Result<PathBuf> {
     if name.is_null() {
-        return Err(FjiffyldgError::FileInaccessible);
+        return Err(FjiffyldgError::FileNotLoaded);
     }
 
     let value = unsafe { CStr::from_ptr(name) };
@@ -257,7 +257,8 @@ pub extern "C" fn RestartScanFile(
             }
         }
         let utf_mode = utf_mode_from_c(utf);
-        let auto_detect = utf_mode == UtfMode::AutoDetect;
+        // Default 模式也触发 BOM 自动检测，与 Rust API restart_scan 行为一致
+        let auto_detect = utf_mode == UtfMode::AutoDetect || utf_mode == UtfMode::Default;
         result_code(handle.model.handle().restart_scan_with_auto_detect(
             offset as u64,
             utf_mode,

@@ -12,6 +12,10 @@
 //! | [`check_extract_text_utf8`] | 抽取式 UTF-8 检查（适合流式片段） |
 //! | [`get_utf8_char_count`] | 统计有效 UTF-8 字符数 |
 //! | [`get_utf8_char_count_with_offset`] | 字符数 + 已消费字节数 |
+//! | [`is_ascii_char`] | 检查单个字节是否为 ASCII |
+//! | [`check_utf8_char`] | 检查单个 UTF-8 字符的有效性 |
+//! | [`convert_to_utf8`] | 将文本从 UTF-16/UTF-32 转换为 UTF-8 |
+//! | [`TextEncoding`] | 文本编码类型枚举 |
 //!
 //! # 示例
 //!

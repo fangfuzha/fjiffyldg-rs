@@ -300,11 +300,13 @@ impl FileModel {
     /// - 成功：字节位置
     /// - 失败：-1
     pub fn get_line_pos(&self, index: i64) -> i64 {
+        if index < 0 { return -1; }
         self.line_index.get_line_pos(index as usize)
     }
 
     /// 获取指定行的内容长度（字节数，不含行尾符）
     pub fn get_line_length(&self, index: i64) -> i64 {
+        if index < 0 { return -1; }
         self.line_index.get_line_length(index as usize)
     }
 
@@ -887,7 +889,8 @@ impl FileModel {
     /// - `pos`：行内起始位置
     /// - `len`：最大读取长度。若为0，默认最多读取 4KB
     pub fn read_to_end_of_line(&self, index: i64, pos: i64, len: &mut usize) -> Option<Vec<u8>> {
-        let file_size = *self.file_size.read() as i64;
+        let file_size = (*self.file_size.read()).min(i64::MAX as u64) as i64;
+        if index < 0 { *len = 0; return None; }
         let line_start = self.line_index.get_line_pos(index as usize);
 
         if line_start < 0 || pos < line_start || pos > file_size {

@@ -8,7 +8,7 @@ line_length = 100
 tab_width = 4
 documentation = true
 documentation_style = "doxy"
-sys_includes = ["stdint.h"]
+sys_includes = []
 after_includes = """
 #ifdef FJIFFYLDG_SHARED
 #if defined(_WIN32) || defined(__CYGWIN__)

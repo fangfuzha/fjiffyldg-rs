@@ -789,7 +789,7 @@ mod tests {
     }
 
     #[test]
-    fn test_c_ffi_restart_scan_distinguishes_auto_detect_from_default() {
+    fn test_c_ffi_restart_scan_auto_detect_and_default_both_trigger_bom() {
         let mut temp = NamedTempFile::new().unwrap();
         let mut data = vec![0xFF, 0xFE];
         for unit in "skip\nline\n".encode_utf16() {
@@ -802,15 +802,17 @@ mod tests {
         assert_eq!(ffi::LoadAndScanFile(handle, path.as_ptr()), 0);
         ffi::WaitFileScanTaskFinished(handle);
 
+        // utf=-1 (AutoDetect): 触发 BOM 检测 → UTF-16LE
         ffi::RestartScanFile(handle, path.as_ptr(), 12, -1);
         ffi::WaitFileScanTaskFinished(handle);
         assert_eq!(ffi::GetFileLinePos(handle, 0), 12);
         assert_eq!(ffi::GetFileLinePos(handle, 1), 22);
 
+        // utf=0 (Default): 同样触发 BOM 检测 → UTF-16LE（与 Rust API 行为一致）
         ffi::RestartScanFile(handle, path.as_ptr(), 12, 0);
         ffi::WaitFileScanTaskFinished(handle);
         assert_eq!(ffi::GetFileLinePos(handle, 0), 12);
-        assert_eq!(ffi::GetFileLinePos(handle, 1), 21);
+        assert_eq!(ffi::GetFileLinePos(handle, 1), 22);
 
         ffi::fjiffyldg_clear(handle);
     }

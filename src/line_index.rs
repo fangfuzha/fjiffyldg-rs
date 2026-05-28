@@ -101,7 +101,7 @@ impl LineIndex {
     /// 获取总行数
     pub fn get_line_count(&self) -> i64 {
         if self.is_scanned() {
-            *self.total_lines.read() as i64
+            (*self.total_lines.read()).min(i64::MAX as u64) as i64
         } else {
             -1
         }
@@ -589,7 +589,16 @@ impl LineIndex {
         drop(chunks);
         let mut overstep_pos = self.overstep_pos.write();
         if *overstep_pos == 0 {
+            // 首次溢出：记录位置，不更新 chunk（与 C++ 首次行为一致）
             *overstep_pos = pos;
+        } else {
+            // 后续溢出：继续更新最后一个 chunk 的 max_line_index
+            // 对齐 C++ 的 chunk.Top().index++ 行为
+            drop(overstep_pos);
+            let mut chunks = self.chunks.write();
+            if let Some(last) = chunks.last_mut() {
+                last.max_line_index = line_index;
+            }
         }
     }
 
