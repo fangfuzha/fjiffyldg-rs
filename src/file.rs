@@ -198,6 +198,8 @@ pub struct FileModel {
     scan_state: Arc<ScanState>,
     /// 后台扫描取消请求标记
     cancel_requested: Arc<AtomicBool>,
+    /// 加载操作互斥锁（防止并发 load_file 导致状态损坏）
+    load_mutex: Mutex<()>,
 }
 
 impl FileModel {
@@ -216,6 +218,7 @@ impl FileModel {
             is_loaded: RwLock::new(false),
             scan_state: Arc::new(ScanState::new()),
             cancel_requested: Arc::new(AtomicBool::new(false)),
+            load_mutex: Mutex::new(()),
         }
     }
 
@@ -284,6 +287,10 @@ impl FileModel {
         if !self.is_loaded() {
             return -1;
         }
+        // 扫描进行中时返回 -1（对齐 C++ linescanRunning 三态逻辑）
+        if self.is_scanning() {
+            return -1;
+        }
         self.line_index.get_line_count()
     }
 
@@ -343,12 +350,14 @@ impl FileModel {
         enable_scan: bool,
         mmap_chunk_size: u64,
     ) -> Result<()> {
+        let _load_guard = self.load_mutex.lock();
         let path = path.as_ref();
         self.request_stop_scan();
-        self.line_index.clear();
+        // request_stop_scan 内部已调用 line_index.clear()，无需重复调用
         *self.data.write() = None;
         *self.mmap.write() = None;
         *self.file.write() = None;
+        *self.file_size.write() = 0;
         *self.is_loaded.write() = false;
 
         let file = match File::open(path) {
@@ -372,6 +381,13 @@ impl FileModel {
         };
 
         let file_size = metadata.len();
+
+        // 拒绝目录路径（Windows 上 File::open 对目录成功，metadata.len() 返回 0）
+        if !metadata.is_file() {
+            *self.error_code.write() = FjiffyldgError::FileInaccessible.to_error_code();
+            return Err(FjiffyldgError::FileInaccessible);
+        }
+
         *self.file_size.write() = file_size;
         *self.mmap_chunk_size.write() = mmap_chunk_size.max(1);
         *self.file.write() = Some(file);
@@ -546,6 +562,7 @@ impl FileModel {
     ) -> UtfMode {
         match forced_utf_mode {
             Some(UtfMode::Default) if auto_detect => file_utf_mode,
+            Some(UtfMode::AutoDetect) => file_utf_mode,
             Some(mode) => mode,
             None if current_utf_mode != UtfMode::Default => current_utf_mode,
             None if auto_detect => file_utf_mode,
@@ -641,12 +658,17 @@ impl FileModel {
     }
 
     /// 确保当前 mmap 窗口覆盖指定读取范围。
-    fn ensure_mmap_window(&self, pos: u64, len: u64) -> Result<Arc<Mmap>> {
-        if let Some(mmap) = self.mmap.read().as_ref() {
-            let offset = *self.mmap_offset.read();
-            let mapped_end = offset + mmap.len() as u64;
-            if pos >= offset && pos.saturating_add(len) <= mapped_end {
-                return Ok(Arc::clone(mmap));
+    ///
+    /// 返回 `(窗口偏移, Arc<Mmap>)` 元组，确保调用方获得一致的窗口视图。
+    fn ensure_mmap_window(&self, pos: u64, len: u64) -> Result<(u64, Arc<Mmap>)> {
+        {
+            let mmap_guard = self.mmap.read();
+            if let Some(mmap) = mmap_guard.as_ref() {
+                let offset = *self.mmap_offset.read();
+                let mapped_end = offset + mmap.len() as u64;
+                if pos >= offset && pos.saturating_add(len) <= mapped_end {
+                    return Ok((offset, Arc::clone(mmap)));
+                }
             }
         }
 
@@ -663,7 +685,7 @@ impl FileModel {
 
         *self.mmap.write() = Some(Arc::clone(&mmap));
         *self.mmap_offset.write() = aligned_offset;
-        Ok(mmap)
+        Ok((aligned_offset, mmap))
     }
 
     /// 标记扫描完成（内部调用）
@@ -704,11 +726,10 @@ impl FileModel {
             return Some(data[end_pos..end_pos + actual_len].to_vec());
         }
 
-        let mmap = self
+        let (mmap_offset, mmap) = self
             .ensure_mmap_window(end_pos as u64, actual_len as u64)
             .ok()?;
-        let mmap_offset = *self.mmap_offset.read() as usize;
-        let window_pos = end_pos.checked_sub(mmap_offset)?;
+        let window_pos = end_pos.checked_sub(mmap_offset as usize)?;
         Some(mmap[window_pos..window_pos + actual_len].to_vec())
     }
 
@@ -761,7 +782,7 @@ impl FileModel {
         *len = actual_len;
 
         if actual_len == 0 {
-            None
+            Some(Vec::new())
         } else {
             self.read_data(*bpos, actual_len)
         }
@@ -816,6 +837,13 @@ impl FileModel {
 
         if next_pos < 0 || next_pos - cur_pos > CRITICAL_LONGLINE_LEN as i64 {
             next_pos = cur_pos + CRITICAL_LONGLINE_LEN as i64;
+            // 长行截断后推进 index，避免下次调用读到相同位置导致无限循环
+            if cur_pos == begin {
+                let after = self.line_index.get_line_pos((*index + 1) as usize);
+                if after > 0 {
+                    *index += 1;
+                }
+            }
         }
 
         let actual_len = if next_pos > begin {
@@ -839,7 +867,7 @@ impl FileModel {
     /// # 参数
     /// - `index`：行索引
     /// - `pos`：行内起始位置
-    /// - `len`：最大读取长度。若为0，返回剩余内容
+    /// - `len`：最大读取长度。若为0，默认最多读取 4KB
     pub fn read_to_end_of_line(&self, index: i64, pos: i64, len: &mut usize) -> Option<Vec<u8>> {
         let file_size = *self.file_size.read() as i64;
         let line_start = self.line_index.get_line_pos(index as usize);
@@ -1115,6 +1143,18 @@ pub fn get_file_size<P: AsRef<Path>>(path: P) -> Result<u64> {
         .map_err(|_| FjiffyldgError::FileInaccessible)
 }
 
+/// 写后校验：验证文件实际大小与预期一致。
+///
+/// 如果 `get_file_size` 失败，保留原始错误（`FileInaccessible`）；
+/// 仅在大小不匹配时返回 [`IncompleteWrite`](FjiffyldgError::IncompleteWrite)。
+fn verify_file_size(path: &Path, expected: u64) -> Result<()> {
+    let actual = get_file_size(path)?;
+    if actual != expected {
+        return Err(FjiffyldgError::IncompleteWrite);
+    }
+    Ok(())
+}
+
 /// 使用可写内存映射将大块数据保存到文件。
 fn save_large_file(path: &Path, data: &[u8]) -> Result<()> {
     let file = OpenOptions::new()
@@ -1162,10 +1202,7 @@ pub fn clone_file<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<()> 
     }
 
     // 写后校验：目标文件大小应与源文件一致
-    let actual = get_file_size(dst).map_err(|_| FjiffyldgError::IncompleteWrite)?;
-    if actual != file_size {
-        return Err(FjiffyldgError::IncompleteWrite);
-    }
+    verify_file_size(dst, file_size)?;
     Ok(())
 }
 
@@ -1218,10 +1255,7 @@ pub fn save_file<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
     }
 
     // 写后校验：文件大小应与预期一致
-    let actual = get_file_size(path).map_err(|_| FjiffyldgError::IncompleteWrite)?;
-    if actual != expected_len {
-        return Err(FjiffyldgError::IncompleteWrite);
-    }
+    verify_file_size(path, expected_len)?;
     Ok(())
 }
 
@@ -1247,10 +1281,7 @@ pub fn append_file<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
     }
 
     // 写后校验：文件大小应增长了 append_len
-    let actual = get_file_size(path).map_err(|_| FjiffyldgError::IncompleteWrite)?;
-    if actual != size_before + append_len {
-        return Err(FjiffyldgError::IncompleteWrite);
-    }
+    verify_file_size(path, size_before + append_len)?;
     Ok(())
 }
 
@@ -1289,10 +1320,7 @@ pub fn concatenate_files<P: AsRef<Path>, I: IntoIterator<Item = P>>(
     }
 
     // 写后校验：文件大小应与追加前大小 + 所有源文件大小之和一致
-    let actual = get_file_size(output).map_err(|_| FjiffyldgError::IncompleteWrite)?;
-    if actual != expected_total_size {
-        return Err(FjiffyldgError::IncompleteWrite);
-    }
+    verify_file_size(output, expected_total_size)?;
     Ok(())
 }
 

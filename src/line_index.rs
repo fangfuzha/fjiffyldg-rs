@@ -60,10 +60,8 @@ pub struct LineIndex {
     total_lines: RwLock<u64>,
     /// 超过分块限制时的起始位置
     overstep_pos: RwLock<u64>,
-    /// 缓存的行索引
-    cached_line: RwLock<u64>,
-    /// 缓存的字节位置
-    cached_pos: RwLock<u64>,
+    /// 缓存的行索引和字节位置（合并为单锁避免 TOCTOU 竞态）
+    cached: RwLock<(u64, u64)>,
 }
 
 impl LineIndex {
@@ -77,8 +75,7 @@ impl LineIndex {
             is_scanned: AtomicBool::new(false),
             total_lines: RwLock::new(0),
             overstep_pos: RwLock::new(0),
-            cached_line: RwLock::new(u64::MAX),
-            cached_pos: RwLock::new(0),
+            cached: RwLock::new((u64::MAX, 0)),
         }
     }
 
@@ -322,7 +319,7 @@ impl LineIndex {
     /// 返回跨窗口扫描时需要保留的尾部字节数。
     fn boundary_retain_len(utf_mode: UtfMode) -> usize {
         match utf_mode {
-            UtfMode::Default => 1,
+            UtfMode::Default | UtfMode::AutoDetect => 1,
             UtfMode::Utf16Le | UtfMode::Utf16Be => 3,
             UtfMode::Utf32Le | UtfMode::Utf32Be => 7,
         }
@@ -355,10 +352,12 @@ impl LineIndex {
             return -1;
         }
 
-        // 检查缓存
-        let cached_line = *self.cached_line.read();
-        if cached_line == index as u64 {
-            return *self.cached_pos.read() as i64;
+        // 检查缓存（原子读取，避免 TOCTOU 竞态）
+        {
+            let cached = self.cached.read();
+            if cached.0 == index as u64 {
+                return cached.1 as i64;
+            }
         }
 
         let (left, right) = self.search_bounds_by_line(index);
@@ -372,16 +371,15 @@ impl LineIndex {
             return -1;
         };
 
-        *self.cached_line.write() = index as u64;
-        *self.cached_pos.write() = pos;
+        *self.cached.write() = (index as u64, pos);
         pos as i64
     }
 
     /// 根据字节位置查找所在行索引
+    ///
+    /// 当索引为空（未扫描或扫描中无数据）时返回 -1，
+    /// 当有已索引数据时返回对应行号（即使扫描仍在进行中）。
     pub fn get_line_by_pos(&self, pos: i64) -> i64 {
-        if !self.is_scanned() {
-            return -1;
-        }
         if pos < 0 {
             return -1;
         }
@@ -519,8 +517,7 @@ impl LineIndex {
         self.chunks.write().clear();
         *self.total_lines.write() = 0;
         *self.overstep_pos.write() = 0;
-        *self.cached_line.write() = u64::MAX;
-        *self.cached_pos.write() = 0;
+        *self.cached.write() = (u64::MAX, 0);
         self.is_scanned.store(false, Ordering::Release);
     }
 
@@ -592,7 +589,7 @@ impl LineIndex {
         let width = match utf_mode {
             UtfMode::Utf16Le | UtfMode::Utf16Be => 2,
             UtfMode::Utf32Le | UtfMode::Utf32Be => 4,
-            UtfMode::Default => 1,
+            UtfMode::Default | UtfMode::AutoDetect => 1,
         };
 
         width.min(data.len() - pos)
@@ -601,7 +598,7 @@ impl LineIndex {
     /// 判断当前位置是否为换行符并返回行尾字节数
     fn newline_len_at(data: &[u8], pos: usize, utf_mode: UtfMode) -> Option<usize> {
         match utf_mode {
-            UtfMode::Default => Self::newline_len_u8(data, pos),
+            UtfMode::Default | UtfMode::AutoDetect => Self::newline_len_u8(data, pos),
             UtfMode::Utf16Le => Self::newline_len_fixed(data, pos, 2, &[b'\r', 0], &[b'\n', 0]),
             UtfMode::Utf16Be => Self::newline_len_fixed(data, pos, 2, &[0, b'\r'], &[0, b'\n']),
             UtfMode::Utf32Le => {

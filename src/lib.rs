@@ -260,11 +260,10 @@ impl Default for Fjiffyldg {
     }
 }
 
-impl Drop for Fjiffyldg {
-    fn drop(&mut self) {
-        self.clear();
-    }
-}
+// 注意：不实现 Drop 调用 clear()。
+// Fjiffyldg 通过 Arc<FileModel> 共享所有权，任何 clone 被 drop 时
+// 调用 clear() 会破坏所有其他存活 clone 的数据。
+// Arc 的引用计数归零时会自动释放 FileModel。
 
 #[cfg(test)]
 mod tests {
@@ -1002,7 +1001,7 @@ mod tests {
             .read_line_cut(&mut index, &mut begin, &mut end, &mut len)
             .unwrap();
 
-        assert_eq!(index, 0);
+        assert_eq!(index, 1); // 长行截断后 index 推进到下一行（修复无限循环）
         assert_eq!(begin, 0);
         assert_eq!(end, 4096);
         assert_eq!(len, 4096);

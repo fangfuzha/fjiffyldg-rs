@@ -130,15 +130,37 @@ fn is_valid_utf8_continuation(byte: u8) -> bool {
 }
 
 /// 检查单个UTF-8字符的有效性
+///
+/// 验证续接字节模式、超长编码（overlong）、UTF-16 代理对半区和超出 U+10FFFF 的码点。
 pub fn check_utf8_char(text: &[u8], width: usize) -> bool {
     if text.len() < width {
         return false;
     }
 
-    text.iter()
-        .take(width)
-        .skip(1)
-        .all(|byte| is_valid_utf8_continuation(*byte))
+    // 检查续接字节模式
+    if !text.iter().take(width).skip(1).all(|byte| is_valid_utf8_continuation(*byte)) {
+        return false;
+    }
+
+    // 拒绝超长编码（overlong encoding）
+    // 2 字节序列的有效范围：U+0080..U+07FF（首字节 C2..DF）
+    if width == 2 && text[0] < 0xC2 {
+        return false;
+    }
+
+    // 拒绝 UTF-16 代理对半区（U+D800..U+DFFF）
+    // 3 字节序列首字节 ED，第二字节 A0..BF
+    if width == 3 && text[0] == 0xED && (text[1] & 0xA0) == 0xA0 {
+        return false;
+    }
+
+    // 拒绝超出 U+10FFFF 的码点
+    // 4 字节序列首字节 > F4，或首字节 F4 但第二字节 > 8F
+    if width == 4 && (text[0] > 0xF4 || (text[0] == 0xF4 && text[1] > 0x8F)) {
+        return false;
+    }
+
+    true
 }
 
 /// 完整检查文本UTF-8编码有效性

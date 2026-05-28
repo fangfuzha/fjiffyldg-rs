@@ -147,6 +147,7 @@ fn handle_ref<'a>(fm: fjiffyldg_ptr) -> Option<&'a fjiffyldg_t> {
 /// 将 C ABI UTF 模式转换为 Rust UTF 模式。
 fn utf_mode_from_c(utf: c_int) -> UtfMode {
     match utf {
+        -1 => UtfMode::AutoDetect,
         1 => UtfMode::Utf16Le,
         2 => UtfMode::Utf16Be,
         3 => UtfMode::Utf32Le,
@@ -248,10 +249,11 @@ pub extern "C" fn RestartScanFile(
                     return;
                 }
             }
-            let auto_detect = utf == -1;
+            let utf_mode = utf_mode_from_c(utf);
+            let auto_detect = utf_mode == UtfMode::AutoDetect;
             let _ = handle.model.handle().restart_scan_with_auto_detect(
                 offset as u64,
-                utf_mode_from_c(utf),
+                utf_mode,
                 auto_detect,
             );
         }
@@ -758,7 +760,11 @@ mod tests {
         assert_eq!(LoadAndScanFile(fm, path.as_ptr()), 0);
         assert!(unsafe { (*fm).model.is_scanning() });
         assert_eq!(GetFileLineCount(fm), -1);
-        assert_eq!(GetFileLineIndex(fm, 0), -1);
+        // 扫描中 GetFileLineIndex 可能已对已扫描前缀返回有效结果
+        // （与 C++ 行为一致：GetLineByPos 在 linescanRunning 时可查已扫描前缀）
+        let result = GetFileLineIndex(fm, 0);
+        // 结果为 0（已索引）或 -1（尚未索引）均可接受
+        assert!(result == 0 || result == -1, "unexpected result: {result}");
 
         BackstageRequestStop(fm);
         fjiffyldg_clear(fm);

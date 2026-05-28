@@ -148,4 +148,6 @@ pub enum UtfMode {
     Utf32Le = 3,
     /// UTF-32 大端字节序
     Utf32Be = 4,
+    /// 自动检测编码（根据 BOM 头）
+    AutoDetect = -1,
 }
