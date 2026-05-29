@@ -115,16 +115,8 @@ fn test_crlf_read_line_excludes_cr() {
         );
 
         // 不应包含 \r 或 \n
-        assert!(
-            !data.contains(&b'\r'),
-            "read_line({}) 不应包含 \\r",
-            i
-        );
-        assert!(
-            !data.contains(&b'\n'),
-            "read_line({}) 不应包含 \\n",
-            i
-        );
+        assert!(!data.contains(&b'\r'), "read_line({}) 不应包含 \\r", i);
+        assert!(!data.contains(&b'\n'), "read_line({}) 不应包含 \\n", i);
     }
 
     println!("✅ 2. read_line 返回不含 \\r：通过");
@@ -172,10 +164,7 @@ fn test_crlf_read_line_cut_boundaries() {
 
     // 应包含 line1\r\nline2\r\nline3\r\n 的全部内容
     // 因为每行都很短，会批量合并
-    assert!(
-        data.starts_with(b"line1"),
-        "数据应以 'line1' 开头"
-    );
+    assert!(data.starts_with(b"line1"), "数据应以 'line1' 开头");
 
     // 数据不应在行中间截断
     // 检查 \r\n 成对出现
@@ -230,7 +219,11 @@ fn test_crlf_read_line_cut_single_line_budget() {
     assert_eq!(&data[..7], b"line1\r\n", "前半应为 line1\\r\\n");
     assert_eq!(&data[7..], b"line2\r\n", "后半应为 line2\\r\\n");
 
-    println!("✅ 3b. read_line_cut 预算边界正确：通过 (index={}, len={})", index, data.len());
+    println!(
+        "✅ 3b. read_line_cut 预算边界正确：通过 (index={}, len={})",
+        index,
+        data.len()
+    );
 }
 
 // ── 4. 跨窗口 \r\n 正确 ──

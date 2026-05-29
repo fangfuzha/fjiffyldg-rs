@@ -814,6 +814,15 @@ mod tests {
         assert_eq!(ffi::GetFileLinePos(handle, 0), 12);
         assert_eq!(ffi::GetFileLinePos(handle, 1), 22);
 
+        // utf=1 (Utf16Le): 不触发 BOM 检测，直接使用指定编码（auto_detect=false）
+        // 虽然文件确实是 UTF-16LE，但因为不走检测路径，行为验证：编码模式直接赋值
+        // 从 offset=0 开始扫描，BOM 字节 (FF FE) 会被当作合法 UTF-16LE 字符 U+FEFF
+        ffi::RestartScanFile(handle, path.as_ptr(), 0, 1);
+        ffi::WaitFileScanTaskFinished(handle);
+        // 不检测 BOM → 不剥离 BOM → offset=0 处首行从字节 0 开始
+        let line0_pos = ffi::GetFileLinePos(handle, 0);
+        assert_eq!(line0_pos, 0, "utf=1 不触发 BOM 检测，首行应从字节 0 开始");
+
         ffi::fjiffyldg_clear(handle);
     }
 
@@ -1124,6 +1133,53 @@ mod tests {
             "应为 FileInaccessible 或 FileNotLoaded，实际: {:?}",
             err
         );
+    }
+
+    /// 验证 get_line_count 三态语义：
+    /// - 未加载 → -1
+    /// - 扫描中 → -1
+    /// - 就绪   → 实际行数
+    ///
+    /// 同时验证 is_scanning() 的不变量：仅在 is_loaded() 之后才有意义。
+    #[test]
+    fn test_line_count_three_state_and_scanning_after_loaded_invariant() {
+        let mut temp = NamedTempFile::new().unwrap();
+        // 足够大的文件让扫描持续一段时间，以便在扫描中捕获状态
+        let mut data = Vec::with_capacity(400_000);
+        for _ in 0..200_000 {
+            data.extend_from_slice(b"hello world\n");
+        }
+        temp.write_all(&data).unwrap();
+
+        // ── 状态 1：未加载 ──
+        let fjiffyldg = Fjiffyldg::new();
+        assert!(!fjiffyldg.is_loaded(), "新建实例应为未加载");
+        assert!(!fjiffyldg.is_scanning(), "未加载时不应处于扫描中");
+        assert_eq!(fjiffyldg.line_count(), -1, "未加载时行数应为 -1");
+
+        // ── 状态 2：扫描中 ──
+        // load_and_scan 在同步阶段设置 is_loaded=true，再启动后台扫描
+        fjiffyldg.load_and_scan(temp.path()).unwrap();
+        assert!(fjiffyldg.is_loaded(), "load_and_scan 返回后应为已加载");
+
+        // 大文件后台扫描尚未完成时，is_scanning() 应为 true
+        if fjiffyldg.is_scanning() {
+            assert_eq!(fjiffyldg.line_count(), -1, "扫描进行中时行数应为 -1");
+        }
+
+        // ── 状态 3：就绪 ──
+        fjiffyldg.wait_scan();
+        assert!(fjiffyldg.is_loaded(), "扫描完成后仍应为已加载");
+        assert!(!fjiffyldg.is_scanning(), "扫描完成后不应处于扫描中");
+        assert!(
+            fjiffyldg.line_count() > 0,
+            "扫描完成后行数应 > 0，实际: {}",
+            fjiffyldg.line_count()
+        );
+
+        // ── 不变量：is_scanning() → is_loaded() ──
+        // 遍历三个阶段，is_scanning 为 true 时 is_loaded 必须也为 true
+        // （上面已覆盖：未加载时 is_scanning=false；扫描中和就绪时 is_loaded=true）
     }
 }
 
