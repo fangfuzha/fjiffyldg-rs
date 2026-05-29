@@ -782,7 +782,9 @@ mod tests {
     /// LoadAndScanFile(null,...) → -1
     #[test]
     fn load_and_scan_null_handle_returns_neg1() {
-        let ret = LoadAndScanFile(ptr::null_mut(), b"dummy\0".as_ptr().cast());
+        // CI 中 `clippy::manual_c_str_literals` 会报错，
+        // 直接使用 C 字符串字面量 `c"dummy"` 代替手工拼接 NUL。
+        let ret = LoadAndScanFile(ptr::null_mut(), c"dummy".as_ptr().cast());
         assert_eq!(
             ret, -1,
             "LoadAndScanFile(null,...) should return -1, got {ret}"

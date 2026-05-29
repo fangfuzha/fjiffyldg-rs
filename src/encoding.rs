@@ -269,7 +269,7 @@ pub fn check_extract_text_utf8(text: &[u8]) -> usize {
     // 确认首字节是有效的 UTF-8 起始字节
     if !text
         .first()
-        .map_or(false, |b| get_utf8_char_width(*b).is_some())
+        .is_some_and(|b| get_utf8_char_width(*b).is_some())
     {
         return 0;
     }
