@@ -169,8 +169,9 @@ pub fn check_utf8_char(text: &[u8], width: usize) -> bool {
     }
 
     // 拒绝 UTF-16 代理对半区（U+D800..U+DFFF）
-    // 3 字节序列首字节 ED，第二字节 A0..BF（即高半区 0xA0..=0xBF）
-    if width == 3 && text[0] == 0xED && (text[1] & 0xF0) == 0xA0 {
+    // 3 字节序列首字节 ED，第二字节 A0..BF
+    // 续接字节检查已保证 text[1] ∈ 0x80..=0xBF，只需检查 ≥ 0xA0
+    if width == 3 && text[0] == 0xED && text[1] >= 0xA0 {
         return false;
     }
 
@@ -490,5 +491,82 @@ mod tests {
             convert_to_utf8(&utf32be, &TextEncoding::Utf32Be).unwrap(),
             b"a\n"
         );
+    }
+
+    #[test]
+    fn test_utf8_overlong_rejected() {
+        // 2 字节 overlong: C0 80 编码 U+0000（应 1 字节）
+        assert!(!check_utf8_char(&[0xC0, 0x80], 2));
+        assert!(check_whole_text_utf8(&[0xC0, 0x80]) > 0);
+
+        // 3 字节 overlong: E0 80 80 编码 U+0000
+        assert!(!check_utf8_char(&[0xE0, 0x80, 0x80], 3));
+        assert!(check_whole_text_utf8(&[0xE0, 0x80, 0x80]) > 0);
+
+        // 4 字节 overlong: F0 80 80 80 编码 U+0000
+        assert!(!check_utf8_char(&[0xF0, 0x80, 0x80, 0x80], 4));
+        assert!(check_whole_text_utf8(&[0xF0, 0x80, 0x80, 0x80]) > 0);
+    }
+
+    #[test]
+    fn test_utf8_surrogate_pair_rejected() {
+        // U+D800 代理对: ED A0 80
+        assert!(!check_utf8_char(&[0xED, 0xA0, 0x80], 3));
+        assert!(check_whole_text_utf8(&[0xED, 0xA0, 0x80]) > 0);
+
+        // U+DFFF 代理对: ED BF BF
+        assert!(!check_utf8_char(&[0xED, 0xBF, 0xBF], 3));
+        assert!(check_whole_text_utf8(&[0xED, 0xBF, 0xBF]) > 0);
+
+        // 合法 3 字节（非代理）: ED 9F BF = U+07FF 边界
+        assert!(check_utf8_char(&[0xED, 0x9F, 0xBF], 3));
+    }
+
+    #[test]
+    fn test_utf8_out_of_range_rejected() {
+        // U+110000: F4 90 80 80
+        assert!(!check_utf8_char(&[0xF4, 0x90, 0x80, 0x80], 4));
+        assert!(check_whole_text_utf8(&[0xF4, 0x90, 0x80, 0x80]) > 0);
+
+        // F5 开头总是超范围
+        assert!(!check_utf8_char(&[0xF5, 0x80, 0x80, 0x80], 4));
+
+        // 合法最大码点 U+10FFFF: F4 8F BF BF
+        assert!(check_utf8_char(&[0xF4, 0x8F, 0xBF, 0xBF], 4));
+    }
+
+    #[test]
+    fn test_convert_to_utf8_utf16_strips_bom() {
+        // UTF-16LE with BOM: FF FE + 'a' (61 00) + '\n' (0A 00)
+        let utf16le_bom = [0xFF, 0xFE, 0x61, 0x00, 0x0A, 0x00];
+        // UTF-16LE without BOM
+        let utf16le_raw = [0x61, 0x00, 0x0A, 0x00];
+
+        let result_bom = convert_to_utf8(&utf16le_bom, &TextEncoding::Utf16Le).unwrap();
+        let result_raw = convert_to_utf8(&utf16le_raw, &TextEncoding::Utf16Le).unwrap();
+        assert_eq!(result_bom, result_raw);
+        assert_eq!(result_bom, b"a\n");
+
+        // UTF-16BE with BOM: FE FF + 'a' (00 61) + '\n' (00 0A)
+        let utf16be_bom = [0xFE, 0xFF, 0x00, 0x61, 0x00, 0x0A];
+        let utf16be_raw = [0x00, 0x61, 0x00, 0x0A];
+
+        let result_bom = convert_to_utf8(&utf16be_bom, &TextEncoding::Utf16Be).unwrap();
+        let result_raw = convert_to_utf8(&utf16be_raw, &TextEncoding::Utf16Be).unwrap();
+        assert_eq!(result_bom, result_raw);
+        assert_eq!(result_bom, b"a\n");
+    }
+
+    #[test]
+    fn test_check_extract_utf8_error_position() {
+        // 构造 10+ 字节文本，中间有非法 UTF-8 字节 0xFF
+        let mut text = vec![b'a'; 5];
+        text.push(0xFF); // 非法字节
+        text.extend_from_slice(&[b'b'; 5]);
+
+        let result = check_extract_text_utf8(&text);
+        assert!(result > 0, "应检测到非法字节，返回值 > 0");
+        // 错误位置 = text.len() - error_pos = 11 - 5 = 6
+        assert_eq!(result, 6);
     }
 }

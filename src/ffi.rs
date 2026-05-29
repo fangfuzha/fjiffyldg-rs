@@ -776,4 +776,123 @@ mod tests {
         BackstageRequestStop(fm);
         fjiffyldg_clear(fm);
     }
+
+    // ---- FFI 空指针防护验证 ----
+
+    /// LoadAndScanFile(null,...) → -1
+    #[test]
+    fn load_and_scan_null_handle_returns_neg1() {
+        let ret = LoadAndScanFile(ptr::null_mut(), b"dummy\0".as_ptr().cast());
+        assert_eq!(
+            ret, -1,
+            "LoadAndScanFile(null,...) should return -1, got {ret}"
+        );
+    }
+
+    /// ReadFileData(valid_fm, 0, null_len) → null
+    #[test]
+    fn read_file_data_null_len_returns_null() {
+        let fm = fjiffyldg_create();
+        assert!(!fm.is_null());
+        let ret = ReadFileData(fm, 0, ptr::null_mut());
+        assert!(ret.is_null(), "ReadFileData(fm,0,null) should return null");
+        fjiffyldg_clear(fm);
+    }
+
+    /// GetUtf8TextCharCount(null, 10) → 0
+    #[test]
+    fn get_utf8_text_char_count_null_returns_0() {
+        let ret = GetUtf8TextCharCount(ptr::null_mut(), 10);
+        assert_eq!(
+            ret, 0,
+            "GetUtf8TextCharCount(null,10) should return 0, got {ret}"
+        );
+    }
+
+    /// ToSaveFile(null, buf, len) → -1
+    #[test]
+    fn to_save_file_null_name_returns_neg1() {
+        let buf = b"hello";
+        let ret = ToSaveFile(ptr::null(), buf.as_ptr().cast(), 5);
+        assert_eq!(ret, -1, "ToSaveFile(null,...) should return -1, got {ret}");
+    }
+
+    // ---- FFI 负参数防御验证 ----
+
+    /// 验证 FFI 层对负参数的防御性处理
+    ///
+    /// - `GetFileLinePos(fm, -1)` → -1
+    /// - `GetFileLineLength(fm, -1)` → -1
+    /// - `GetFileLineIndex(fm, -1)` → -1
+    /// - `ReadFileData(fm, -1, &len)` → pos 钳位到 0（读取文件头）
+    /// - `ReadFileDataLLineCut` index=-1 → null，len 置 0
+    #[test]
+    fn negative_params_handling() {
+        // 准备一个包含多行内容的临时文件
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"line0\nline1\nline2\n").unwrap();
+        let path = CString::new(temp.path().to_string_lossy().as_bytes()).unwrap();
+        let fm = fjiffyldg_create();
+
+        assert_eq!(LoadAndScanFile(fm, path.as_ptr()), 0);
+        // 等待扫描完成
+        unsafe {
+            (*fm).model.wait_scan();
+        }
+
+        // 1. GetFileLinePos(fm, -1) → -1
+        assert_eq!(GetFileLinePos(fm, -1), -1, "line_pos(-1) 应返回 -1");
+
+        // 2. GetFileLineLength(fm, -1) → -1
+        assert_eq!(GetFileLineLength(fm, -1), -1, "line_length(-1) 应返回 -1");
+
+        // 3. GetFileLineIndex(fm, -1) → -1
+        assert_eq!(GetFileLineIndex(fm, -1), -1, "line_at_pos(-1) 应返回 -1");
+
+        // 4. ReadFileData(fm, -1, &len) → pos 钳位到 0，读取文件开头
+        let mut len: c_uint = 100;
+        let ptr = ReadFileData(fm, -1, &mut len);
+        // pos=-1 钳位到 0，应返回文件开头数据（read_data 是字节级读取，不按行分割）
+        assert!(
+            !ptr.is_null(),
+            "ReadFileData(fm,-1) 钳位到 0 应返回有效指针"
+        );
+        assert_eq!(
+            len, 18,
+            "ReadFileData(fm,-1) 钳位到 0 应读取整个文件（18字节），got {len}"
+        );
+        let data = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len as usize) };
+        assert!(
+            data.starts_with(b"line0\n"),
+            "ReadFileData(fm,-1) 钳位到 0 应从文件头开始读取"
+        );
+
+        // 5. ReadFileDataLLineCut(index=-1) → null，len 置 0
+        let mut index: c_longlong = -1;
+        let mut bpos: c_longlong = 0;
+        let mut epos: c_longlong = 0;
+        let mut len_cut: c_uint = 100;
+        let ptr_cut = ReadFileDataLLineCut(fm, &mut index, &mut bpos, &mut epos, &mut len_cut);
+        assert!(
+            ptr_cut.is_null(),
+            "ReadFileDataLLineCut(index=-1) 应返回 null"
+        );
+        assert_eq!(len_cut, 0, "ReadFileDataLLineCut(index=-1) 应将 len 置为 0");
+
+        // 6. 重复验证 ReadFileData(fm, -1, &len) 钳位（len=3 时应返回前 3 字节）
+        let mut len2: c_uint = 3;
+        let ptr2 = ReadFileData(fm, -1, &mut len2);
+        assert!(
+            !ptr2.is_null(),
+            "ReadFileData(fm,-1,len=3) 钳位到 0 应返回有效指针"
+        );
+        assert_eq!(len2, 3, "ReadFileData(fm,-1,len=3) 应读取 3 字节");
+        assert_eq!(
+            unsafe { std::slice::from_raw_parts(ptr2.cast::<u8>(), len2 as usize) },
+            b"lin",
+            "ReadFileData(fm,-1,len=3) 钳位到 0 应读到文件前 3 字节"
+        );
+
+        fjiffyldg_clear(fm);
+    }
 }

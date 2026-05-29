@@ -1070,6 +1070,61 @@ mod tests {
         assert_eq!(fjiffyldg.line_length(0), 8);
         assert_eq!(fjiffyldg.line_pos(1), 22);
     }
+
+    #[test]
+    fn test_clone_drop_does_not_affect_other_clone() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"line1\nline2\nline3\n").unwrap();
+
+        let a = Fjiffyldg::new();
+        a.load_and_scan(temp.path()).unwrap();
+        a.wait_scan();
+        assert_eq!(a.line_count(), 4);
+
+        let b = a.clone();
+        assert_eq!(b.line_count(), 4);
+
+        // drop clone b，a 应不受影响
+        drop(b);
+        assert_eq!(a.line_count(), 4);
+        assert_eq!(a.line_length(0), 5);
+        assert!(a.read(0, 5).is_some());
+    }
+
+    #[test]
+    fn test_read_line_empty_line_returns_empty_vec() {
+        let mut temp = NamedTempFile::new().unwrap();
+        temp.write_all(b"a\n\nb\n").unwrap();
+
+        let fjiffyldg = Fjiffyldg::new();
+        fjiffyldg.load_and_scan(temp.path()).unwrap();
+        fjiffyldg.wait_scan();
+
+        // 行 0: "a", 行 1: 空行, 行 2: "b"
+        assert_eq!(fjiffyldg.line_count(), 4);
+
+        let mut bpos = 0i64;
+        let mut epos = 0i64;
+        let mut len = 0usize;
+        let data = fjiffyldg.read_line(1, &mut bpos, &mut epos, &mut len);
+        assert_eq!(data, Some(Vec::new()));
+        assert_eq!(len, 0);
+    }
+
+    #[test]
+    fn test_load_directory_returns_error() {
+        let dir = std::env::temp_dir();
+        let fjiffyldg = Fjiffyldg::new();
+        let result = fjiffyldg.load_and_scan(dir);
+        assert!(result.is_err(), "加载目录应返回错误");
+        // Windows 上 File::open(目录) 可能返回 NotFound 或 AccessDenied
+        let err = result.unwrap_err();
+        assert!(
+            err == FjiffyldgError::FileInaccessible || err == FjiffyldgError::FileNotLoaded,
+            "应为 FileInaccessible 或 FileNotLoaded，实际: {:?}",
+            err
+        );
+    }
 }
 
 pub mod prelude {

@@ -300,13 +300,17 @@ impl FileModel {
     /// - 成功：字节位置
     /// - 失败：-1
     pub fn get_line_pos(&self, index: i64) -> i64 {
-        if index < 0 { return -1; }
+        if index < 0 {
+            return -1;
+        }
         self.line_index.get_line_pos(index as usize)
     }
 
     /// 获取指定行的内容长度（字节数，不含行尾符）
     pub fn get_line_length(&self, index: i64) -> i64 {
-        if index < 0 { return -1; }
+        if index < 0 {
+            return -1;
+        }
         self.line_index.get_line_length(index as usize)
     }
 
@@ -702,6 +706,15 @@ impl FileModel {
             }
         }
 
+        // 慢路径：获取写锁后 double-check，避免并发线程重复创建 mmap
+        let mut window = self.mmap_window.write();
+        if let Some((offset, mmap)) = window.as_ref() {
+            let mapped_end = offset + mmap.len() as u64;
+            if pos >= *offset && pos.saturating_add(len) <= mapped_end {
+                return Ok((*offset, Arc::clone(mmap)));
+            }
+        }
+
         let file_size = *self.file_size.read();
         let chunk_size = (*self.mmap_chunk_size.read()).max(1);
         let aligned_offset = (pos / chunk_size) * chunk_size;
@@ -713,7 +726,7 @@ impl FileModel {
         let window_len = window_end.saturating_sub(aligned_offset);
         let mmap = Arc::new(self.map_file_window(aligned_offset, window_len)?);
 
-        *self.mmap_window.write() = Some((aligned_offset, Arc::clone(&mmap)));
+        *window = Some((aligned_offset, Arc::clone(&mmap)));
         Ok((aligned_offset, mmap))
     }
 
@@ -894,7 +907,10 @@ impl FileModel {
     /// - `len`：最大读取长度。若为0，默认最多读取 4KB
     pub fn read_to_end_of_line(&self, index: i64, pos: i64, len: &mut usize) -> Option<Vec<u8>> {
         let file_size = (*self.file_size.read()).min(i64::MAX as u64) as i64;
-        if index < 0 { *len = 0; return None; }
+        if index < 0 {
+            *len = 0;
+            return None;
+        }
         let line_start = self.line_index.get_line_pos(index as usize);
 
         if line_start < 0 || pos < line_start || pos > file_size {
