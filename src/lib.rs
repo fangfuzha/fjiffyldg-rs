@@ -63,7 +63,7 @@
 //! | [`encoding`] | 编码检测、UTF-8 校验、字符计数 |
 //! | [`error`] | 错误类型与 UTF 编码模式 |
 //! | [`ffi`] | C ABI 绑定 |
-//! | [`file`] | 文件模型与文件操作 |
+//! | [`mod@file`] | 文件模型与文件操作 |
 //! | [`line_index`] | 分级行索引 |
 
 pub mod encoding;

@@ -46,8 +46,17 @@ fn test_single_long_line_all_properties() {
     assert_eq!(epos, CRITICAL as i64, "read_line epos 应为 {}", CRITICAL);
     assert_eq!(len, CRITICAL, "read_line len 应为 {}", CRITICAL);
     assert_eq!(data.len(), CRITICAL, "read_line 数据长度应为 {}", CRITICAL);
-    assert!(data.iter().all(|&b| b == b'A'), "read_line 数据内容应全为 'A'");
-    println!("✅ read_line(0): bpos={}, epos={}, len={}, data.len()={}", bpos, epos, len, data.len());
+    assert!(
+        data.iter().all(|&b| b == b'A'),
+        "read_line 数据内容应全为 'A'"
+    );
+    println!(
+        "✅ read_line(0): bpos={}, epos={}, len={}, data.len()={}",
+        bpos,
+        epos,
+        len,
+        data.len()
+    );
 
     // ── 3. read_line_cut(0) 截断 + index 推进 ──
     let mut index = 0i64;
@@ -59,11 +68,30 @@ fn test_single_long_line_all_properties() {
     let data = data.unwrap();
     assert_eq!(index, 1, "read_line_cut index 应推进到 1（下一行）");
     assert_eq!(bpos, 0, "read_line_cut bpos 应为 0");
-    assert_eq!(epos, CRITICAL as i64, "read_line_cut epos 应为 {}", CRITICAL);
+    assert_eq!(
+        epos, CRITICAL as i64,
+        "read_line_cut epos 应为 {}",
+        CRITICAL
+    );
     assert_eq!(len, CRITICAL, "read_line_cut len 应为 {}", CRITICAL);
-    assert_eq!(data.len(), CRITICAL, "read_line_cut 数据长度应为 {}", CRITICAL);
-    assert!(data.iter().all(|&b| b == b'A'), "read_line_cut 数据内容应全为 'A'");
-    println!("✅ read_line_cut(0): index={}, bpos={}, epos={}, len={}, data.len()={}", index, bpos, epos, len, data.len());
+    assert_eq!(
+        data.len(),
+        CRITICAL,
+        "read_line_cut 数据长度应为 {}",
+        CRITICAL
+    );
+    assert!(
+        data.iter().all(|&b| b == b'A'),
+        "read_line_cut 数据内容应全为 'A'"
+    );
+    println!(
+        "✅ read_line_cut(0): index={}, bpos={}, epos={}, len={}, data.len()={}",
+        index,
+        bpos,
+        epos,
+        len,
+        data.len()
+    );
 
     // ── 4. read_to_end_of_line(0, 0, 0) 截断到 4KB ──
     let mut len = 0usize; // 0 → 默认上限 4KB
@@ -72,9 +100,21 @@ fn test_single_long_line_all_properties() {
     let data = data.unwrap();
     // 对于无换行的单行，line_end = file_size，所以实际读取量 = min(4KB, file_size) = 4KB
     assert_eq!(len, CRITICAL, "read_to_end_of_line len 应为 {}", CRITICAL);
-    assert_eq!(data.len(), CRITICAL, "read_to_end_of_line 数据长度应为 {}", CRITICAL);
-    assert!(data.iter().all(|&b| b == b'A'), "read_to_end_of_line 数据内容应全为 'A'");
-    println!("✅ read_to_end_of_line(0,0,0): len={}, data.len()={}", len, data.len());
+    assert_eq!(
+        data.len(),
+        CRITICAL,
+        "read_to_end_of_line 数据长度应为 {}",
+        CRITICAL
+    );
+    assert!(
+        data.iter().all(|&b| b == b'A'),
+        "read_to_end_of_line 数据内容应全为 'A'"
+    );
+    println!(
+        "✅ read_to_end_of_line(0,0,0): len={}, data.len()={}",
+        len,
+        data.len()
+    );
 
     // ── 5. line_at_pos(file_size - 1) == 0 ──
     let line = fjiff.line_at_pos(file_size - 1);
